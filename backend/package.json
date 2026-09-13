@@ -1,11 +1,11 @@
 {
   "name": "convoweave-backend-reference",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test server.node-test.mjs"
+    "test": "node --test config.node-test.mjs server.node-test.mjs"
   },
   "engines": {
     "node": ">=24"
