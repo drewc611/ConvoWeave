@@ -110,6 +110,10 @@ export type MeetingProposal = {
   confidence: number;
   evidence: EvidenceRef[];
   state: ProposalState;
+  ownerId?: string;
+  dueAt?: ISODateTime;
+  rationale?: string;
+  reviewAt?: ISODateTime;
 };
 
 export type MeetingReview = {
