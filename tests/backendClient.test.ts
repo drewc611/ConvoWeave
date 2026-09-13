@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import type { Meeting } from '../src/models/domain';
-import { HttpProcessingClient } from '../src/services/backendClient';
+import { BackendRequestError, HttpProcessingClient } from '../src/services/backendClient';
 import type { UploadApproval } from '../src/services/uploadPolicy';
 
 const meeting: Meeting = {
@@ -77,5 +77,36 @@ describe('HttpProcessingClient credential boundary', () => {
     const client = new HttpProcessingClient('https://api.convoweave.example', async () => null);
 
     await expect(client.getResult('session-1')).resolves.toBeNull();
+  });
+
+  it('preserves backend error code and request id for support diagnostics', async () => {
+    vi.spyOn(globalThis, 'fetch').mockResolvedValue(new Response(JSON.stringify({
+      error: {
+        code: 'processing-session-not-found',
+        message: 'The processing session does not exist.',
+        requestId: 'request-123',
+      },
+    }), {
+      status: 404,
+      headers: {
+        'Content-Type': 'application/json',
+        'X-Request-Id': 'request-123',
+      },
+    }));
+    const client = new HttpProcessingClient('https://api.convoweave.example', async () => 'token');
+
+    let caught: unknown;
+    try {
+      await client.getResult('missing');
+    } catch (error) {
+      caught = error;
+    }
+
+    expect(caught).toBeInstanceOf(BackendRequestError);
+    const typed = caught as BackendRequestError;
+    expect(typed.status).toBe(404);
+    expect(typed.code).toBe('processing-session-not-found');
+    expect(typed.requestId).toBe('request-123');
+    expect(typed.message).toBe('The processing session does not exist.');
   });
 });
