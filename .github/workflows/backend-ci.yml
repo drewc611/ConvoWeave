@@ -1,0 +1,65 @@
+name: Backend CI
+
+on:
+  pull_request:
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+      - '.dockerignore'
+      - 'docs/BACKEND_API.md'
+  push:
+    branches: [main]
+    paths:
+      - 'backend/**'
+      - '.github/workflows/backend-ci.yml'
+      - '.dockerignore'
+      - 'docs/BACKEND_API.md'
+
+permissions:
+  contents: read
+
+jobs:
+  validate-backend:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+
+      - name: Syntax checks
+        run: |
+          node --check backend/config.mjs
+          node --check backend/server.mjs
+          node --check backend/providers/index.mjs
+          node --check backend/providers/deterministic.mjs
+
+      - name: Backend contract tests
+        run: npm --prefix backend test
+
+      - name: Build backend container
+        run: docker build -f backend/Dockerfile -t convoweave-backend:test .
+
+      - name: Smoke test container health and readiness
+        run: |
+          docker run -d --rm \
+            --name convoweave-backend-test \
+            -p 8787:8787 \
+            -e CONVOWEAVE_ENV=development \
+            -e CONVOWEAVE_AUTH_MODE=development-token \
+            -e CONVOWEAVE_DEV_TOKEN=ci-development-token \
+            -e CONVOWEAVE_PROCESSING_PROVIDER=deterministic \
+            convoweave-backend:test
+          trap 'docker stop convoweave-backend-test >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8787/healthz >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8787/healthz
+          curl --fail --silent http://127.0.0.1:8787/readyz

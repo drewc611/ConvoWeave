@@ -13,6 +13,18 @@ export type RemoteProcessingResult = {
   review: MeetingReview;
 };
 
+export class BackendRequestError extends Error {
+  constructor(
+    message: string,
+    readonly status: number,
+    readonly code: string,
+    readonly requestId?: string,
+  ) {
+    super(message);
+    this.name = 'BackendRequestError';
+  }
+}
+
 export interface RemoteProcessingClient {
   createSession(meeting: Meeting, approval: UploadApproval): Promise<ProcessingSession>;
   uploadAudio(session: ProcessingSession, meeting: Meeting, approval: UploadApproval): Promise<void>;
@@ -21,15 +33,15 @@ export interface RemoteProcessingClient {
 
 export class LocalOnlyProcessingClient implements RemoteProcessingClient {
   async createSession(): Promise<ProcessingSession> {
-    throw new Error('Remote processing is disabled in the local-only alpha.');
+    throw new Error('Remote processing is disabled in local mode.');
   }
 
   async uploadAudio(): Promise<void> {
-    throw new Error('Remote processing is disabled in the local-only alpha.');
+    throw new Error('Remote processing is disabled in local mode.');
   }
 
   async getResult(): Promise<RemoteProcessingResult | null> {
-    throw new Error('Remote processing is disabled in the local-only alpha.');
+    throw new Error('Remote processing is disabled in local mode.');
   }
 }
 
@@ -66,7 +78,9 @@ export class HttpProcessingClient implements RemoteProcessingClient {
       headers: { 'Content-Type': audio.type || 'application/octet-stream' },
       body: audio,
     });
-    if (!uploadResponse.ok) throw new Error(`Audio upload failed with status ${uploadResponse.status}.`);
+    if (!uploadResponse.ok) {
+      throw await this.toRequestError(uploadResponse, 'Audio upload failed.');
+    }
   }
 
   async getResult(sessionId: string): Promise<RemoteProcessingResult | null> {
@@ -81,8 +95,28 @@ export class HttpProcessingClient implements RemoteProcessingClient {
     if (token) headers.set('Authorization', `Bearer ${token}`);
     const response = await fetch(`${this.baseUrl.replace(/\/$/, '')}${path}`, { ...init, headers });
     if (!response.ok && response.status !== 202) {
-      throw new Error(`Backend request failed with status ${response.status}.`);
+      throw await this.toRequestError(response, 'Backend request failed.');
     }
     return response;
+  }
+
+  private async toRequestError(response: Response, fallbackMessage: string): Promise<BackendRequestError> {
+    const headerRequestId = response.headers.get('x-request-id') ?? undefined;
+    let code = 'backend-request-failed';
+    let message = fallbackMessage;
+    let requestId = headerRequestId;
+
+    try {
+      const payload = await response.clone().json() as {
+        error?: { code?: unknown; message?: unknown; requestId?: unknown };
+      };
+      if (typeof payload.error?.code === 'string') code = payload.error.code;
+      if (typeof payload.error?.message === 'string') message = payload.error.message;
+      if (typeof payload.error?.requestId === 'string') requestId = payload.error.requestId;
+    } catch {
+      // Non-JSON upstream errors still become a typed client error.
+    }
+
+    return new BackendRequestError(message, response.status, code, requestId);
   }
 }

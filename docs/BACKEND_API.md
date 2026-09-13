@@ -2,17 +2,17 @@
 
 ## Purpose
 
-The mobile application must never contain transcription, LLM, storage-provider, or other privileged service credentials.
+The ConvoWeave mobile application never contains transcription, model, storage, database, or other privileged service credentials. Remote processing is optional and every meeting upload requires explicit per-meeting user approval.
 
-Remote processing is optional. The default alpha implementation remains local-only. When remote processing is enabled later, every meeting upload requires an explicit per-meeting approval created by a user action.
+The processing API is provider-neutral and versioned under `/v1`.
 
 ## Trust boundary
 
 ### Mobile client may contain
 
 - public API base URL
-- user/session authentication token obtained through an authentication flow
-- one-time or short-lived presigned upload URL returned by the ConvoWeave backend
+- user/session token obtained through a real authentication flow
+- one-time or short-lived upload capability returned by the backend
 - explicit upload approval for the current meeting
 
 ### Mobile client must not contain
@@ -24,9 +24,60 @@ Remote processing is optional. The default alpha implementation remains local-on
 - Apple or Google store private keys
 - reusable privileged service credentials
 
+## Operational endpoints
+
+### `GET /healthz`
+
+Liveness endpoint. No authentication required.
+
+Example:
+
+```json
+{
+  "status": "ok",
+  "service": "convoweave-processing",
+  "apiVersion": "v1"
+}
+```
+
+### `GET /readyz`
+
+Readiness endpoint. No authentication required. Returns HTTP 200 when the configured processing provider is ready and HTTP 503 when it is not.
+
+Example:
+
+```json
+{
+  "status": "ready",
+  "service": "convoweave-processing",
+  "environment": "preview",
+  "provider": "provider-name"
+}
+```
+
+Health/readiness responses must not expose secrets or provider credentials.
+
+## Request IDs and errors
+
+Every response includes `X-Request-Id`. A caller may supply `X-Request-Id`; otherwise the backend generates one.
+
+API errors use one stable envelope:
+
+```json
+{
+  "error": {
+    "code": "processing-session-not-found",
+    "message": "The processing session does not exist.",
+    "requestId": "request-id"
+  }
+}
+```
+
+`code` is the machine-stable value. `message` is safe for user/developer diagnostics. Sensitive upstream/provider errors must not be returned to the client.
+
 ## Upload approval
 
-The client uses `UploadApproval` from `src/services/uploadPolicy.ts`.
+The mobile client uses `UploadApproval` from `src/services/uploadPolicy.ts`:
 
 ```ts
 type UploadApproval = {
@@ -37,15 +88,15 @@ type UploadApproval = {
 };
 ```
 
-Approval is meeting-specific. Approval for one meeting cannot authorize another meeting. An expired approval is invalid. Transcript-only approval cannot be used to upload audio.
+Approval is meeting-specific. Approval for one meeting cannot authorize another meeting. An expired approval is invalid. Transcript-only approval cannot authorize audio upload.
 
-The first production implementation should persist the approval event in an audit log on the backend after authentication.
+Production must independently persist/verify the approval event after authentication. Never trust `meetingId`, `approvedAt`, or scope solely because the client sent them.
 
-## API shape
+## Processing API
 
 ### `POST /v1/processing-sessions`
 
-Creates a server-side processing session after the client has locally validated explicit approval.
+Creates a processing session after local approval validation and backend authentication/authorization.
 
 Request:
 
@@ -59,8 +110,6 @@ Request:
 }
 ```
 
-The authenticated backend must independently authorize the user and meeting. Never trust `approvedAt` or `meetingId` merely because the client sent them.
-
 Response:
 
 ```json
@@ -68,65 +117,79 @@ Response:
   "id": "processing-789",
   "meetingId": "meeting-123",
   "status": "created",
-  "audioUploadUrl": "https://short-lived-presigned-upload.example/..."
+  "audioUploadUrl": "https://short-lived-upload.example/..."
 }
 ```
 
-`audioUploadUrl` should be short-lived, scoped to one object, and use a restricted HTTP method.
+The upload URL/capability must be short-lived, scoped to a single object/session, and restricted to the required method.
 
 ### Audio upload
 
-When the approval scope is `audio-and-transcript`, the mobile client uploads the local recording directly to the short-lived URL returned by the backend.
+With `audio-and-transcript` approval, the client uploads the local recording to the one-time upload URL/capability returned by the backend.
 
-The storage object must be inaccessible by default. The backend should use encryption at rest, minimal retention, and a deletion policy aligned to the user's configured retention setting.
+The ConvoWeave bearer token must not be forwarded to a separate upload host. Storage must be private by default, encrypted at rest, retained only as required, and deleted according to product retention policy.
 
 ### `GET /v1/processing-sessions/{id}`
 
-Returns HTTP 202 while work is pending.
+Returns HTTP 202 while work is waiting/uploading/processing.
 
-When complete, return a result containing:
+Example pending response:
+
+```json
+{
+  "id": "processing-789",
+  "meetingId": "meeting-123",
+  "status": "processing"
+}
+```
+
+When ready, HTTP 200 returns:
 
 - transcript with stable segment IDs
 - proposed structured memory
-- source evidence references
-- confidence values
-- no automatically accepted decisions, commitments, assumptions, or contradictions
+- evidence references
+- confidence values when generated by a provider
+- no automatically accepted durable decisions, commitments, assumptions, or contradictions
 
-The mobile human-review workflow remains authoritative before generated proposals become durable meeting memory.
+A failed provider/session returns the stable error envelope, not raw provider details.
 
 ## Evidence requirements
 
-Every accepted generated object must be traceable to transcript evidence. A contradiction additionally requires both:
+Every generated memory proposal must be traceable to transcript evidence. A contradiction requires both:
 
 1. current evidence
-2. prior evidence from the existing thread
+2. prior evidence from existing thread state
 
 If either side is missing, the backend must not emit a durable contradiction candidate.
 
+The mobile human-review workflow remains authoritative before generated proposals become durable memory.
+
 ## Data minimization
 
-The processing endpoint should receive only the data needed for the approved task.
-
-- Do not upload Private Sidecar notes unless the user explicitly promoted them.
+- Do not upload unpromoted Private Sidecar notes.
 - Do not upload unrelated thread history.
-- Prefer server-side retrieval of the minimum evidence necessary for comparison.
-- Do not keep raw audio indefinitely after processing.
+- Retrieve only the minimum prior evidence required for comparison.
+- Do not retain raw audio indefinitely.
+- Do not log raw audio, transcripts, private notes, bearer tokens, upload capabilities, or provider credentials.
 
-## Authentication
+## Authentication and authorization
 
-The backend should issue normal user/session tokens. Do not ship a shared app-level bearer secret in the binary.
+Development may use an explicitly configured local development token. Production may not.
 
-Recommended production properties:
+Production requirements include:
 
-- short-lived access tokens
-- refresh-token rotation or platform-supported session renewal
-- device/session revocation
+- short-lived authenticated user/session access
 - server-side authorization on every meeting/thread operation
-- rate limits
-- audit events for upload approval, processing start, result creation, retention deletion, and user corrections
+- token/session revocation
+- rate limits and abuse controls
+- audit events for approval, upload, processing, deletion, and corrections
 
 ## Provider adapters
 
-Provider-specific calls happen only behind the backend. The mobile `TranscriptionProvider`, `ExtractionProvider`, `ContradictionProvider`, and `BriefingProvider` interfaces should remain provider-neutral.
+Provider-specific calls happen only behind backend processor adapters. Provider response shapes are translated into ConvoWeave's provider-neutral transcript/review contract before crossing the API boundary.
 
-The backend can change model vendors without changing the durable mobile domain model.
+Changing vendors must not require changing the durable mobile domain model.
+
+## Compatibility
+
+Breaking behavior must not be silently introduced under `/v1`. Add a new API version or a compatibility period, and update backend/mobile contract tests together.
