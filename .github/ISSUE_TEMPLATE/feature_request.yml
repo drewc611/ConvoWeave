@@ -1,0 +1,39 @@
+name: Feature request
+description: Propose a product or architecture change
+title: "Feature: "
+body:
+  - type: textarea
+    id: outcome
+    attributes:
+      label: User outcome
+      description: What user problem should this solve?
+    validations:
+      required: true
+  - type: textarea
+    id: behavior
+    attributes:
+      label: Proposed behavior
+      description: Describe the smallest useful version.
+    validations:
+      required: true
+  - type: textarea
+    id: memory
+    attributes:
+      label: Meeting-memory impact
+      description: Does this change evidence, decisions, commitments, assumptions, contradictions, or private/shared boundaries?
+  - type: textarea
+    id: privacy
+    attributes:
+      label: Privacy and data impact
+      description: Identify new permissions, data collection, third-party services, uploads, or retention changes.
+  - type: checkboxes
+    id: invariants
+    attributes:
+      label: Product invariants
+      options:
+        - label: This does not silently overwrite prior decisions.
+          required: true
+        - label: Private notes remain private unless explicitly promoted.
+          required: true
+        - label: Important generated claims retain source evidence where applicable.
+          required: true
