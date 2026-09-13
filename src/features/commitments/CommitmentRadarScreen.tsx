@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
+import { SourceProof } from '../../components/SourceProof';
 import type { Commitment } from '../../models/domain';
 import { colors } from '../../theme';
 import { getCommitmentRisk, sortCommitmentsByAttention } from './commitmentRisk';
@@ -64,7 +65,7 @@ export function CommitmentRadarScreen({
               {commitment.ownerId ? `Owner: ${commitment.ownerId}` : 'Owner not confirmed'}
               {commitment.dueAt ? ` · Due ${new Date(commitment.dueAt).toLocaleString()}` : ' · No due date confirmed'}
             </Text>
-            <Text style={styles.source}>{commitment.evidence[0]?.quote ? `Source: “${commitment.evidence[0].quote}”` : 'Source evidence retained with commitment'}</Text>
+            <SourceProof evidence={commitment.evidence} compact />
 
             <View style={styles.actions}>
               {commitment.status === 'open' ? (
@@ -110,7 +111,6 @@ const styles = StyleSheet.create({
   status: { color: colors.muted, fontSize: 11, fontWeight: '800' },
   title: { color: colors.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
   body: { color: colors.muted, lineHeight: 20, marginTop: 7 },
-  source: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
   actions: { flexDirection: 'row', gap: 8, marginTop: 15 },
   doneButton: { backgroundColor: colors.forest, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12 },
   doneText: { color: 'white', fontWeight: '800' },
