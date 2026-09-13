@@ -1,55 +1,122 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StatusBar, StyleSheet, Text, View } from 'react-native';
+import { Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from './components/Screen';
+import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
+import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
 import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
-import type { Assumption, Commitment, Decision, Meeting, MeetingProposal } from './models/domain';
+import type {
+  Assumption,
+  Commitment,
+  Decision,
+  Meeting,
+  MeetingChangeSet,
+  MeetingReview,
+  Thread,
+} from './models/domain';
 import { mockProviders } from './services/mockProviders';
 import {
   AssumptionRepository,
   CommitmentRepository,
   DecisionRepository,
+  MeetingChangeSetRepository,
   MeetingRepository,
+  MeetingReviewRepository,
+  ThreadRepository,
 } from './storage/repositories';
 import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review';
+type Route = 'home' | 'capture' | 'review' | 'changes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
 export function AppRoot() {
   const repositories = useMemo(() => ({
     meetings: new MeetingRepository(),
+    reviews: new MeetingReviewRepository(),
+    changes: new MeetingChangeSetRepository(),
+    threads: new ThreadRepository(),
     decisions: new DecisionRepository(),
     commitments: new CommitmentRepository(),
     assumptions: new AssumptionRepository(),
   }), []);
+
   const [route, setRoute] = useState<Route>('home');
   const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null);
-  const [recentMeetings, setRecentMeetings] = useState<Meeting[]>([]);
-  const [counts, setCounts] = useState({ decisions: 0, commitments: 0, assumptions: 0 });
+  const [currentReview, setCurrentReview] = useState<MeetingReview | null>(null);
+  const [currentChangeSet, setCurrentChangeSet] = useState<MeetingChangeSet | null>(null);
+  const [meetings, setMeetings] = useState<Meeting[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [decisions, setDecisions] = useState<Decision[]>([]);
+  const [commitments, setCommitments] = useState<Commitment[]>([]);
+  const [assumptions, setAssumptions] = useState<Assumption[]>([]);
+  const [changeSets, setChangeSets] = useState<MeetingChangeSet[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
+  const [newThreadTitle, setNewThreadTitle] = useState('');
+  const [pendingReviewMeeting, setPendingReviewMeeting] = useState<Meeting | null>(null);
+  const [pendingReview, setPendingReview] = useState<MeetingReview | null>(null);
 
   const refresh = async () => {
-    const [meetings, decisions, commitments, assumptions] = await Promise.all([
+    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextThreads, nextChangeSets] = await Promise.all([
       repositories.meetings.list(),
       repositories.decisions.list(),
       repositories.commitments.list(),
       repositories.assumptions.list(),
+      repositories.threads.list(),
+      repositories.changes.list(),
     ]);
-    setRecentMeetings(meetings.slice(0, 5));
-    setCounts({
-      decisions: decisions.length,
-      commitments: commitments.filter((item) => item.status === 'open').length,
-      assumptions: assumptions.filter((item) => item.status === 'untested').length,
+
+    if (nextThreads.length === 0) {
+      const now = new Date().toISOString();
+      const inbox: Thread = { id: 'inbox-thread', title: 'Inbox', createdAt: now, updatedAt: now };
+      await repositories.threads.upsert(inbox);
+      nextThreads = [inbox];
+    }
+
+    setMeetings(nextMeetings);
+    setDecisions(nextDecisions);
+    setCommitments(nextCommitments);
+    setAssumptions(nextAssumptions);
+    setThreads(nextThreads);
+    setChangeSets(nextChangeSets);
+    setSelectedThreadId((current) => {
+      if (current && nextThreads.some((thread) => thread.id === current)) return current;
+      return nextThreads[0]?.id ?? null;
     });
+
+    const reviewMeeting = nextMeetings.find((meeting) => meeting.status === 'review') ?? null;
+    setPendingReviewMeeting(reviewMeeting);
+    setPendingReview(reviewMeeting ? await repositories.reviews.get(reviewMeeting.id) : null);
   };
 
   useEffect(() => { void refresh(); }, []);
+
+  const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
+  const counts = {
+    decisions: decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId).length,
+    commitments: commitments.filter((item) => (!selectedThreadId || item.threadId === selectedThreadId) && item.status === 'open').length,
+    assumptions: assumptions.filter((item) => (!selectedThreadId || item.threadId === selectedThreadId) && item.status === 'untested').length,
+  };
+  const changeSetByMeeting = new Map(changeSets.map((item) => [item.meetingId, item]));
+
+  const createThread = async () => {
+    const title = newThreadTitle.trim();
+    if (!title) return;
+    const now = new Date().toISOString();
+    const thread: Thread = { id: makeId('thread'), title, createdAt: now, updatedAt: now };
+    await repositories.threads.upsert(thread);
+    setNewThreadTitle('');
+    setSelectedThreadId(thread.id);
+    await refresh();
+    setSelectedThreadId(thread.id);
+  };
 
   const finishCapture = async (audioUri: string | undefined, durationMs: number) => {
     const now = new Date();
     const meeting: Meeting = {
       id: makeId('meeting'),
+      threadId: selectedThreadId ?? undefined,
       title: `Meeting · ${now.toLocaleDateString()}`,
       startedAt: new Date(now.getTime() - durationMs).toISOString(),
       endedAt: now.toISOString(),
@@ -59,12 +126,38 @@ export function AppRoot() {
     };
     await repositories.meetings.upsert(meeting);
     setCurrentMeeting(meeting);
+    setCurrentReview(null);
     setRoute('review');
   };
 
-  const saveReview = async (meeting: Meeting, proposals: MeetingProposal[]) => {
-    const threadId = meeting.threadId ?? 'inbox-thread';
-    const accepted = proposals.filter((item) => item.state === 'accepted');
+  const saveReviewProgress = async (review: MeetingReview) => {
+    await repositories.reviews.upsert(review);
+    if (currentMeeting) {
+      const updatedMeeting: Meeting = { ...currentMeeting, transcript: review.transcript, status: 'review' };
+      await repositories.meetings.upsert(updatedMeeting);
+      setCurrentMeeting(updatedMeeting);
+    }
+    setCurrentReview(review);
+  };
+
+  const loadThreadState = async (threadId: string): Promise<ThreadState> => {
+    const [allDecisions, allCommitments, allAssumptions] = await Promise.all([
+      repositories.decisions.list(),
+      repositories.commitments.list(),
+      repositories.assumptions.list(),
+    ]);
+    return {
+      decisions: allDecisions.filter((item) => item.threadId === threadId),
+      commitments: allCommitments.filter((item) => item.threadId === threadId),
+      assumptions: allAssumptions.filter((item) => item.threadId === threadId),
+    };
+  };
+
+  const saveReview = async (meeting: Meeting, review: MeetingReview) => {
+    const threadId = meeting.threadId ?? selectedThreadId ?? 'inbox-thread';
+    const prior = await loadThreadState(threadId);
+    const accepted = review.proposals.filter((item) => item.state === 'accepted');
+    const now = new Date().toISOString();
 
     for (const proposal of accepted) {
       if (proposal.kind === 'decision') {
@@ -74,7 +167,7 @@ export function AppRoot() {
           statement: proposal.statement,
           status: 'active',
           evidence: proposal.evidence,
-          createdAt: new Date().toISOString(),
+          createdAt: now,
         };
         await repositories.decisions.upsert(decision);
       }
@@ -85,8 +178,8 @@ export function AppRoot() {
           statement: proposal.statement,
           status: 'open',
           evidence: proposal.evidence,
-          createdAt: new Date().toISOString(),
-          lastUpdatedAt: new Date().toISOString(),
+          createdAt: now,
+          lastUpdatedAt: now,
         };
         await repositories.commitments.upsert(commitment);
       }
@@ -102,17 +195,63 @@ export function AppRoot() {
       }
     }
 
-    await repositories.meetings.upsert({ ...meeting, status: 'complete' });
+    const current = await loadThreadState(threadId);
+    const changeSet: MeetingChangeSet = {
+      id: meeting.id,
+      meetingId: meeting.id,
+      threadId,
+      changes: buildDecisionDiff(prior, current),
+      createdAt: now,
+    };
+
+    await repositories.changes.upsert(changeSet);
+    await repositories.meetings.upsert({ ...meeting, threadId, transcript: review.transcript, status: 'complete' });
+    await repositories.reviews.remove(meeting.id);
+
     setCurrentMeeting(null);
-    setRoute('home');
+    setCurrentReview(null);
+    setCurrentChangeSet(changeSet);
+    setSelectedThreadId(threadId);
+    setRoute('changes');
     await refresh();
+    setSelectedThreadId(threadId);
+  };
+
+  const resumeReview = async () => {
+    if (!pendingReviewMeeting) return;
+    setCurrentMeeting(pendingReviewMeeting);
+    setCurrentReview(pendingReview);
+    if (pendingReviewMeeting.threadId) setSelectedThreadId(pendingReviewMeeting.threadId);
+    setRoute('review');
+  };
+
+  const openChanges = async (meetingId: string) => {
+    const existing = changeSetByMeeting.get(meetingId) ?? await repositories.changes.get(meetingId);
+    if (!existing) return;
+    setCurrentChangeSet(existing);
+    setSelectedThreadId(existing.threadId);
+    setRoute('changes');
   };
 
   if (route === 'capture') {
     return <CaptureScreen onCancel={() => setRoute('home')} onFinished={finishCapture} />;
   }
+
   if (route === 'review' && currentMeeting) {
-    return <ReviewScreen meeting={currentMeeting} providers={mockProviders} onDone={saveReview} />;
+    return (
+      <ReviewScreen
+        meeting={currentMeeting}
+        providers={mockProviders}
+        initialReview={currentReview}
+        onProgress={saveReviewProgress}
+        onDone={saveReview}
+      />
+    );
+  }
+
+  if (route === 'changes' && currentChangeSet) {
+    const threadTitle = threads.find((thread) => thread.id === currentChangeSet.threadId)?.title ?? 'Meeting thread';
+    return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
   }
 
   return (
@@ -121,14 +260,52 @@ export function AppRoot() {
       <Header
         eyebrow="CONVOWEAVE"
         title="Your meetings should remember each other."
-        body="Capture a meeting, confirm the important memory, then carry decisions and commitments forward instead of starting from zero."
+        body="Capture into a thread, confirm the important memory, and see exactly what changed from one meeting to the next."
       />
 
-      <Pressable style={styles.capture} onPress={() => setRoute('capture')}>
+      {pendingReviewMeeting ? (
+        <Pressable style={styles.resume} onPress={resumeReview}>
+          <Text style={styles.resumeLabel}>UNFINISHED REVIEW</Text>
+          <Text style={styles.resumeTitle}>Resume {pendingReviewMeeting.title}</Text>
+          <Text style={styles.resumeBody}>Your transcript and proposal decisions are saved locally.</Text>
+        </Pressable>
+      ) : null}
+
+      <Text style={styles.section}>Meeting thread</Text>
+      <View style={styles.threadWrap}>
+        {threads.map((thread) => (
+          <Pressable
+            key={thread.id}
+            onPress={() => setSelectedThreadId(thread.id)}
+            style={[styles.threadChip, selectedThreadId === thread.id && styles.threadChipSelected]}
+          >
+            <Text style={[styles.threadChipText, selectedThreadId === thread.id && styles.threadChipTextSelected]}>{thread.title}</Text>
+          </Pressable>
+        ))}
+      </View>
+
+      <View style={styles.newThreadRow}>
+        <TextInput
+          value={newThreadTitle}
+          onChangeText={setNewThreadTitle}
+          placeholder="New thread name"
+          placeholderTextColor={colors.muted}
+          style={styles.newThreadInput}
+        />
+        <Pressable style={styles.addThreadButton} onPress={createThread}>
+          <Text style={styles.addThreadText}>Add</Text>
+        </Pressable>
+      </View>
+
+      <Pressable
+        disabled={!selectedThreadId}
+        style={[styles.capture, !selectedThreadId && styles.disabled]}
+        onPress={() => setRoute('capture')}
+      >
         <View style={styles.captureDot} />
         <View style={{ flex: 1 }}>
           <Text style={styles.captureTitle}>Start a meeting</Text>
-          <Text style={styles.captureBody}>Record on device, then review before anything becomes memory.</Text>
+          <Text style={styles.captureBody}>Recording into {selectedThread?.title ?? 'your selected thread'}.</Text>
         </View>
       </Pressable>
 
@@ -141,19 +318,27 @@ export function AppRoot() {
       <Text style={styles.section}>Recent meetings</Text>
       {recentMeetings.length === 0 ? (
         <View style={screenStyles.card}>
-          <Text style={styles.empty}>No meetings yet. The first recording will create a durable local draft.</Text>
+          <Text style={styles.empty}>No meetings in this thread yet. The first recording will create a durable local draft.</Text>
         </View>
-      ) : recentMeetings.map((meeting) => (
-        <View key={meeting.id} style={screenStyles.card}>
-          <Text style={styles.meetingTitle}>{meeting.title}</Text>
-          <Text style={styles.meetingMeta}>{meeting.status.toUpperCase()} · {Math.round(meeting.durationMs / 1000)} sec</Text>
-          <Text style={styles.meetingMeta}>{new Date(meeting.startedAt).toLocaleString()}</Text>
-        </View>
-      ))}
+      ) : recentMeetings.map((meeting) => {
+        const hasChanges = changeSetByMeeting.has(meeting.id);
+        return (
+          <View key={meeting.id} style={screenStyles.card}>
+            <Text style={styles.meetingTitle}>{meeting.title}</Text>
+            <Text style={styles.meetingMeta}>{meeting.status.toUpperCase()} · {Math.round(meeting.durationMs / 1000)} sec</Text>
+            <Text style={styles.meetingMeta}>{new Date(meeting.startedAt).toLocaleString()}</Text>
+            {hasChanges ? (
+              <Pressable style={styles.changeLink} onPress={() => openChanges(meeting.id)}>
+                <Text style={styles.changeLinkText}>View what changed</Text>
+              </Pressable>
+            ) : null}
+          </View>
+        );
+      })}
 
       <View style={styles.privateNote}>
         <Text style={styles.privateTitle}>Private by design</Text>
-        <Text style={styles.privateBody}>Raw audio and local state remain on this device in the current alpha. AI providers are mocked until a backend and explicit upload policy are added.</Text>
+        <Text style={styles.privateBody}>Raw audio, saved reviews, and local memory stay on this device in the current alpha. Provider uploads remain disabled.</Text>
       </View>
     </Screen>
   );
@@ -169,7 +354,22 @@ function Metric({ value, label }: { value: number; label: string }) {
 }
 
 const styles = StyleSheet.create({
+  resume: { backgroundColor: colors.amberSoft, borderRadius: 18, padding: 17, marginBottom: 22, borderWidth: 1, borderColor: '#E7C49F' },
+  resumeLabel: { color: colors.amber, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  resumeTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 6 },
+  resumeBody: { color: colors.muted, lineHeight: 20, marginTop: 5 },
+  section: { color: colors.ink, fontSize: 22, fontWeight: '800', marginBottom: 12 },
+  threadWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
+  threadChip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, paddingVertical: 9, paddingHorizontal: 13 },
+  threadChipSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
+  threadChipText: { color: colors.ink, fontWeight: '700' },
+  threadChipTextSelected: { color: 'white' },
+  newThreadRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
+  newThreadInput: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 10, color: colors.ink },
+  addThreadButton: { backgroundColor: colors.forestSoft, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 16 },
+  addThreadText: { color: colors.forest, fontWeight: '900' },
   capture: { backgroundColor: colors.forest, borderRadius: 22, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
+  disabled: { opacity: 0.5 },
   captureDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
   captureTitle: { color: 'white', fontSize: 20, fontWeight: '800' },
   captureBody: { color: '#E5F0E9', marginTop: 5, lineHeight: 20 },
@@ -177,10 +377,11 @@ const styles = StyleSheet.create({
   metric: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 15, padding: 12 },
   metricValue: { color: colors.ink, fontSize: 24, fontWeight: '800' },
   metricLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  section: { color: colors.ink, fontSize: 22, fontWeight: '800', marginBottom: 12 },
   empty: { color: colors.muted, lineHeight: 21 },
   meetingTitle: { color: colors.ink, fontSize: 17, fontWeight: '800', marginBottom: 7 },
   meetingMeta: { color: colors.muted, lineHeight: 19 },
+  changeLink: { alignSelf: 'flex-start', backgroundColor: colors.forestSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 },
+  changeLinkText: { color: colors.forest, fontWeight: '800', fontSize: 12 },
   privateNote: { backgroundColor: colors.forestSoft, borderRadius: 18, padding: 18, marginTop: 8 },
   privateTitle: { color: colors.forest, fontWeight: '900', marginBottom: 6 },
   privateBody: { color: colors.ink, lineHeight: 21 },
