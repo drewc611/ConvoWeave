@@ -4,6 +4,7 @@ import { Header, Screen, screenStyles } from './components/Screen';
 import { AssumptionRegisterScreen } from './features/assumptions/AssumptionRegisterScreen';
 import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
+import { DecisionLedgerScreen } from './features/decisions/DecisionLedgerScreen';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
 import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
@@ -32,7 +33,7 @@ import {
 } from './storage/repositories';
 import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review' | 'changes' | 'commitments' | 'assumptions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -102,12 +103,13 @@ export function AppRoot() {
   useEffect(() => { void refresh(); }, []);
 
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const threadDecisions = decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadCommitments = commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadAssumptions = assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
   const counts = {
-    decisions: decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId).length,
+    decisions: threadDecisions.filter((item) => item.status === 'active').length,
     commitments: threadCommitments.filter((item) => item.status === 'open').length,
     assumptions: threadAssumptions.filter((item) => item.status === 'untested').length,
   };
@@ -250,6 +252,11 @@ export function AppRoot() {
     setRoute('changes');
   };
 
+  const updateDecision = async (decision: Decision) => {
+    await repositories.decisions.upsert(decision);
+    await refresh();
+  };
+
   const updateCommitment = async (commitment: Commitment) => {
     await repositories.commitments.upsert(commitment);
     await refresh();
@@ -308,6 +315,17 @@ export function AppRoot() {
   if (route === 'changes' && currentChangeSet) {
     const threadTitle = threads.find((thread) => thread.id === currentChangeSet.threadId)?.title ?? 'Meeting thread';
     return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
+  }
+
+  if (route === 'decisions') {
+    return (
+      <DecisionLedgerScreen
+        decisions={threadDecisions}
+        threadTitle={selectedThread?.title ?? 'Meeting thread'}
+        onUpdate={updateDecision}
+        onBack={() => setRoute('home')}
+      />
+    );
   }
 
   if (route === 'commitments') {
@@ -402,11 +420,16 @@ export function AppRoot() {
       </Pressable>
 
       <View style={styles.metrics}>
-        <Metric value={counts.decisions} label="decisions" />
+        <Metric value={counts.decisions} label="active decisions" />
         <Metric value={counts.commitments} label="open commitments" />
         <Metric value={counts.assumptions} label="assumptions" />
       </View>
 
+      <FeatureLink
+        title="Decision Ledger"
+        body="Review active, disputed, reversed, and superseded decisions with source proof."
+        onPress={() => setRoute('decisions')}
+      />
       <FeatureLink
         title="Commitment Radar"
         body="See promises that are open, due soon, overdue, completed, or cancelled."
