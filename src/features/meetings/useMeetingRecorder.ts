@@ -16,6 +16,13 @@ export function useMeetingRecorder() {
   const [captureState, setCaptureState] = useState<CaptureState>('idle');
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    return () => {
+      void recorder.stop().catch(() => undefined);
+      void setAudioModeAsync({ allowsRecording: false }).catch(() => undefined);
+    };
+  }, [recorder]);
+
   const start = async () => {
     setError(null);
     const permission = await requestRecordingPermissionsAsync();
