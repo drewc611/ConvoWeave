@@ -16,12 +16,6 @@ export function useMeetingRecorder() {
   const [captureState, setCaptureState] = useState<CaptureState>('idle');
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
-    if (recorderState.mediaServicesDidReset) {
-      setCaptureState('interrupted');
-    }
-  }, [recorderState.mediaServicesDidReset]);
-
   const start = async () => {
     setError(null);
     const permission = await requestRecordingPermissionsAsync();
@@ -58,9 +52,15 @@ export function useMeetingRecorder() {
     }
   };
 
+  const interrupted = recorderState.mediaServicesDidReset;
+  useEffect(() => {
+    if (interrupted) setCaptureState('interrupted');
+  }, [interrupted]);
+
   return {
     captureState,
     durationMs: recorderState.durationMillis,
+    audioUri: recorder.uri ?? recorderState.url ?? undefined,
     error,
     start,
     pause,
