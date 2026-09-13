@@ -1,0 +1,27 @@
+node_modules/
+.expo/
+dist/
+web-build/
+*.log
+.DS_Store
+.env
+.env.*
+!.env.example
+coverage/
+
+# Mobile signing and store credentials
+*.jks
+*.keystore
+*.p8
+*.p12
+*.key
+*.mobileprovision
+credentials/
+.credentials/
+service-account*.json
+*service-account*.json
+play-store-key*.json
+app-store-connect*.json
+
+# Local EAS credential material
+.eas/credentials/

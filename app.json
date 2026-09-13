@@ -1,0 +1,28 @@
+{
+  "expo": {
+    "name": "ConvoWeave",
+    "slug": "convoweave",
+    "version": "0.2.0",
+    "scheme": "convoweave",
+    "orientation": "portrait",
+    "userInterfaceStyle": "light",
+    "ios": {
+      "supportsTablet": true,
+      "bundleIdentifier": "com.convoweave.mobile",
+      "buildNumber": "1"
+    },
+    "android": {
+      "package": "com.convoweave.mobile",
+      "versionCode": 1
+    },
+    "plugins": [
+      [
+        "expo-audio",
+        {
+          "microphonePermission": "Allow ConvoWeave to record meetings after you explicitly start a capture.",
+          "enableBackgroundRecording": false
+        }
+      ]
+    ]
+  }
+}
