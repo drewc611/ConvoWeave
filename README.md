@@ -2,23 +2,33 @@
 
 **The AI companion that remembers your meetings.**
 
-ConvoWeave is a mobile-first meeting memory and decision system. It is designed to preserve what changed across conversations, who committed to what, why decisions were made, and which assumptions or contradictions still need attention.
+ConvoWeave is a mobile-first meeting memory and decision system. It preserves what changed across conversations, who committed to what, why decisions were made, which assumptions remain unverified, and where current statements conflict with earlier evidence.
+
+It is intentionally not a transcript-summary app. Raw evidence and generated interpretation remain separate, and important memory keeps source proof.
 
 ## Current alpha
 
-The `build/mobile-foundation` branch now includes:
+The `build/mobile-foundation` branch includes:
 
 - real on-device microphone capture with explicit permission and recording notice
-- pause, resume, stop, duration tracking, and interruption handling
-- persistent local audio files for recorded meetings
-- SQLite-backed durable local state
-- strict domain models for meetings, evidence, decisions, commitments, assumptions, contradictions, and private notes
-- human review before AI-generated proposals become durable memory
-- source evidence retained with accepted decisions, commitments, and assumptions
-- deterministic decision-diff logic for the future `What Changed?` experience
-- provider interfaces that keep transcription/extraction logic out of UI components
-- mock providers for safe local development
-- CI typechecking and unit tests
+- pause, resume, stop, duration tracking and interruption handling
+- durable recording drafts checkpointed during capture with restart recovery
+- SQLite-backed local persistence behind repository interfaces
+- persistent meeting threads
+- resumable transcript/proposal review state
+- human accept/edit/reject before generated proposals become durable memory
+- deterministic per-meeting `What Changed?` change sets
+- Decision Ledger with active, disputed, reversed and superseded states
+- evidence-backed decision supersede lineage that preserves the prior decision
+- Commitment Radar with owner, due date, deterministic risk state and completion/cancellation/reopen
+- Assumption Register with supported/disproven/expired transitions
+- persisted contradiction review requiring both current and prior evidence
+- Private Sidecar notes with an explicit promotion boundary
+- reusable Source Proof showing meeting reference, speaker when known, timestamps, segment IDs and quote
+- local mock providers for safe development
+- remote transcription/extraction provider adapter behind the same provider interfaces
+- explicit per-meeting remote upload approval with separate transcript-only and audio-and-transcript scopes
+- backend HTTP client that keeps provider credentials server-side and does not forward bearer authorization to presigned upload hosts
 
 ## Development
 
@@ -29,21 +39,59 @@ npm test
 npm start
 ```
 
-Then open the app in Expo Go or a compatible development build.
+For microphone, interruption and restart behavior, validate on a physical device using an Expo development or EAS internal/preview build. Do not treat browser or simulator-only validation as the release gate.
 
-## Architecture
+## Validation
 
-Read these first:
+GitHub Actions currently provide:
+
+- strict TypeScript validation
+- Vitest unit and repository restart-state tests
+- high-severity dependency audit
+- CodeQL JavaScript/TypeScript analysis
+- Gitleaks secret scanning
+- CycloneDX SBOM generation
+- Dependabot for npm and GitHub Actions
+
+The Dependency Review workflow is present but requires GitHub Dependency Graph to be enabled in repository settings.
+
+Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md` and tracked in Issue #5.
+
+## Architecture and product docs
+
+Read these before changing core behavior:
 
 - `CODEX.md`
 - `docs/PRODUCT_STRATEGY.md`
+- `docs/BACKEND_API.md`
+- `docs/DEVICE_TEST_PLAN.md`
+- `docs/STORE_RELEASE.md`
+- `store/PRIVACY_POLICY.md`
 - `LICENSE`
 
-The application intentionally separates raw evidence from generated interpretation. Important AI output must retain source references. Decisions are versioned business objects, not mutable summary text.
+Core invariants:
 
-## Privacy direction
+1. Raw evidence is not the same thing as generated memory.
+2. Generated proposals require human review before becoming durable memory.
+3. Prior decisions are not silently overwritten.
+4. A durable contradiction requires evidence from both sides.
+5. Unpromoted Private Sidecar notes remain outside shared context.
+6. Remote processing is opt-in per meeting.
+7. Provider credentials never belong in the mobile bundle.
 
-The current alpha keeps audio and persisted state on device. The mock AI provider does not upload audio. A future backend/model integration must use an explicit upload policy and must not put provider credentials in the mobile client.
+## Privacy
+
+The current alpha keeps audio, reviews and persisted meeting state on device. The application still uses local mock providers by default and does not automatically upload meeting audio.
+
+A remote provider adapter exists for future backend activation, but it requires explicit meeting-specific approval before audio can leave the device. Any release that enables remote processing must update the store privacy disclosures and privacy policy before distribution.
+
+## Release tracking
+
+- Issue #2: live mobile-alpha engineering checklist
+- Issue #3: Apple Developer, App Store Connect, Google Play and EAS account-holder steps
+- Issue #5: physical iOS/Android device validation
+
+Do not commit Apple credentials, App Store Connect keys, Google service-account JSON, Android keystores/passwords, Expo access tokens, provider secrets, recordings, transcripts or user meeting data.
 
 ## Proprietary software
 
