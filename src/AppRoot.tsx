@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from './components/Screen';
+import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
 import { CaptureScreen } from './features/meetings/CaptureScreen';
@@ -26,7 +27,7 @@ import {
 } from './storage/repositories';
 import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review' | 'changes';
+type Route = 'home' | 'capture' | 'review' | 'changes' | 'commitments';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -92,10 +93,11 @@ export function AppRoot() {
   useEffect(() => { void refresh(); }, []);
 
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
+  const threadCommitments = commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
   const counts = {
     decisions: decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId).length,
-    commitments: commitments.filter((item) => (!selectedThreadId || item.threadId === selectedThreadId) && item.status === 'open').length,
+    commitments: threadCommitments.filter((item) => item.status === 'open').length,
     assumptions: assumptions.filter((item) => (!selectedThreadId || item.threadId === selectedThreadId) && item.status === 'untested').length,
   };
   const changeSetByMeeting = new Map(changeSets.map((item) => [item.meetingId, item]));
@@ -165,6 +167,8 @@ export function AppRoot() {
           id: proposal.id,
           threadId,
           statement: proposal.statement,
+          rationale: proposal.rationale,
+          ownerId: proposal.ownerId,
           status: 'active',
           evidence: proposal.evidence,
           createdAt: now,
@@ -176,6 +180,8 @@ export function AppRoot() {
           id: proposal.id,
           threadId,
           statement: proposal.statement,
+          ownerId: proposal.ownerId,
+          dueAt: proposal.dueAt,
           status: 'open',
           evidence: proposal.evidence,
           createdAt: now,
@@ -190,6 +196,7 @@ export function AppRoot() {
           statement: proposal.statement,
           status: 'untested',
           evidence: proposal.evidence,
+          reviewAt: proposal.reviewAt,
         };
         await repositories.assumptions.upsert(assumption);
       }
@@ -233,6 +240,11 @@ export function AppRoot() {
     setRoute('changes');
   };
 
+  const updateCommitment = async (commitment: Commitment) => {
+    await repositories.commitments.upsert(commitment);
+    await refresh();
+  };
+
   if (route === 'capture') {
     return <CaptureScreen onCancel={() => setRoute('home')} onFinished={finishCapture} />;
   }
@@ -252,6 +264,17 @@ export function AppRoot() {
   if (route === 'changes' && currentChangeSet) {
     const threadTitle = threads.find((thread) => thread.id === currentChangeSet.threadId)?.title ?? 'Meeting thread';
     return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
+  }
+
+  if (route === 'commitments') {
+    return (
+      <CommitmentRadarScreen
+        commitments={threadCommitments}
+        threadTitle={selectedThread?.title ?? 'Meeting thread'}
+        onUpdate={updateCommitment}
+        onBack={() => setRoute('home')}
+      />
+    );
   }
 
   return (
@@ -315,6 +338,14 @@ export function AppRoot() {
         <Metric value={counts.assumptions} label="assumptions" />
       </View>
 
+      <Pressable style={styles.radarLink} onPress={() => setRoute('commitments')}>
+        <View style={{ flex: 1 }}>
+          <Text style={styles.radarTitle}>Commitment Radar</Text>
+          <Text style={styles.radarBody}>See promises that are open, due soon, overdue, completed, or cancelled.</Text>
+        </View>
+        <Text style={styles.radarArrow}>›</Text>
+      </Pressable>
+
       <Text style={styles.section}>Recent meetings</Text>
       {recentMeetings.length === 0 ? (
         <View style={screenStyles.card}>
@@ -373,10 +404,14 @@ const styles = StyleSheet.create({
   captureDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
   captureTitle: { color: 'white', fontSize: 20, fontWeight: '800' },
   captureBody: { color: '#E5F0E9', marginTop: 5, lineHeight: 20 },
-  metrics: { flexDirection: 'row', gap: 8, marginBottom: 24 },
+  metrics: { flexDirection: 'row', gap: 8, marginBottom: 12 },
   metric: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 15, padding: 12 },
   metricValue: { color: colors.ink, fontSize: 24, fontWeight: '800' },
   metricLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
+  radarLink: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
+  radarTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
+  radarBody: { color: colors.muted, lineHeight: 19, marginTop: 4 },
+  radarArrow: { color: colors.forest, fontSize: 28, marginLeft: 10 },
   empty: { color: colors.muted, lineHeight: 21 },
   meetingTitle: { color: colors.ink, fontSize: 17, fontWeight: '800', marginBottom: 7 },
   meetingMeta: { color: colors.muted, lineHeight: 19 },
