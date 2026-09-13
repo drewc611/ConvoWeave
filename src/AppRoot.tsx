@@ -62,6 +62,7 @@ export function AppRoot() {
   const [changeSets, setChangeSets] = useState<MeetingChangeSet[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [newThreadTitle, setNewThreadTitle] = useState('');
+  const [pendingDraftMeeting, setPendingDraftMeeting] = useState<Meeting | null>(null);
   const [pendingReviewMeeting, setPendingReviewMeeting] = useState<Meeting | null>(null);
   const [pendingReview, setPendingReview] = useState<MeetingReview | null>(null);
 
@@ -95,6 +96,7 @@ export function AppRoot() {
       return nextThreads[0]?.id ?? null;
     });
 
+    setPendingDraftMeeting(nextMeetings.find((meeting) => meeting.status === 'draft') ?? null);
     const reviewMeeting = nextMeetings.find((meeting) => meeting.status === 'review') ?? null;
     setPendingReviewMeeting(reviewMeeting);
     setPendingReview(reviewMeeting ? await repositories.reviews.get(reviewMeeting.id) : null);
@@ -126,22 +128,80 @@ export function AppRoot() {
     setSelectedThreadId(thread.id);
   };
 
-  const finishCapture = async (audioUri: string | undefined, durationMs: number) => {
+  const startCaptureDraft = async (audioUri?: string) => {
     const now = new Date();
-    const meeting: Meeting = {
+    const draft: Meeting = {
       id: makeId('meeting'),
       threadId: selectedThreadId ?? undefined,
       title: `Meeting · ${now.toLocaleDateString()}`,
-      startedAt: new Date(now.getTime() - durationMs).toISOString(),
+      startedAt: now.toISOString(),
+      durationMs: 0,
+      audioUri,
+      status: 'draft',
+    };
+    await repositories.meetings.upsert(draft);
+    setCurrentMeeting(draft);
+    setPendingDraftMeeting(draft);
+  };
+
+  const checkpointCapture = async (audioUri: string | undefined, durationMs: number) => {
+    if (!currentMeeting || currentMeeting.status !== 'draft') return;
+    const updated: Meeting = {
+      ...currentMeeting,
+      durationMs,
+      audioUri: audioUri ?? currentMeeting.audioUri,
+    };
+    await repositories.meetings.upsert(updated);
+    setCurrentMeeting(updated);
+    setPendingDraftMeeting(updated);
+  };
+
+  const finishCapture = async (audioUri: string | undefined, durationMs: number) => {
+    const now = new Date();
+    const base = currentMeeting?.status === 'draft'
+      ? currentMeeting
+      : {
+          id: makeId('meeting'),
+          threadId: selectedThreadId ?? undefined,
+          title: `Meeting · ${now.toLocaleDateString()}`,
+          startedAt: new Date(now.getTime() - durationMs).toISOString(),
+          durationMs: 0,
+          status: 'draft' as const,
+        };
+    const meeting: Meeting = {
+      ...base,
       endedAt: now.toISOString(),
       durationMs,
-      audioUri,
+      audioUri: audioUri ?? base.audioUri,
       status: 'review',
     };
     await repositories.meetings.upsert(meeting);
+    setPendingDraftMeeting(null);
     setCurrentMeeting(meeting);
     setCurrentReview(null);
     setRoute('review');
+  };
+
+  const recoverDraft = async (draft: Meeting) => {
+    if (!draft.audioUri) return;
+    const recovered: Meeting = {
+      ...draft,
+      endedAt: draft.endedAt ?? new Date().toISOString(),
+      status: 'review',
+    };
+    await repositories.meetings.upsert(recovered);
+    setPendingDraftMeeting(null);
+    setCurrentMeeting(recovered);
+    setCurrentReview(null);
+    if (recovered.threadId) setSelectedThreadId(recovered.threadId);
+    setRoute('review');
+  };
+
+  const discardDraft = async (draft: Meeting) => {
+    await repositories.meetings.remove(draft.id);
+    if (currentMeeting?.id === draft.id) setCurrentMeeting(null);
+    setPendingDraftMeeting(null);
+    await refresh();
   };
 
   const saveReviewProgress = async (review: MeetingReview) => {
@@ -297,7 +357,14 @@ export function AppRoot() {
   };
 
   if (route === 'capture') {
-    return <CaptureScreen onCancel={() => setRoute('home')} onFinished={finishCapture} />;
+    return (
+      <CaptureScreen
+        onCancel={() => { setRoute('home'); void refresh(); }}
+        onStarted={startCaptureDraft}
+        onCheckpoint={checkpointCapture}
+        onFinished={finishCapture}
+      />
+    );
   }
 
   if (route === 'review' && currentMeeting) {
@@ -373,6 +440,24 @@ export function AppRoot() {
         body="Capture into a thread, confirm the important memory, and see exactly what changed from one meeting to the next."
       />
 
+      {pendingDraftMeeting ? (
+        <View style={styles.draftCard}>
+          <Text style={styles.draftLabel}>UNFINISHED CAPTURE</Text>
+          <Text style={styles.draftTitle}>{pendingDraftMeeting.title}</Text>
+          <Text style={styles.draftBody}>Checkpointed at {Math.round(pendingDraftMeeting.durationMs / 1000)} seconds. {pendingDraftMeeting.audioUri ? 'A local recording reference is available.' : 'No recoverable recording reference is available yet.'}</Text>
+          <View style={styles.draftActions}>
+            {pendingDraftMeeting.audioUri ? (
+              <Pressable style={styles.recoverButton} onPress={() => recoverDraft(pendingDraftMeeting)}>
+                <Text style={styles.recoverText}>Review recovered draft</Text>
+              </Pressable>
+            ) : null}
+            <Pressable style={styles.discardButton} onPress={() => discardDraft(pendingDraftMeeting)}>
+              <Text style={styles.discardText}>Discard draft</Text>
+            </Pressable>
+          </View>
+        </View>
+      ) : null}
+
       {pendingReviewMeeting ? (
         <Pressable style={styles.resume} onPress={resumeReview}>
           <Text style={styles.resumeLabel}>UNFINISHED REVIEW</Text>
@@ -408,14 +493,14 @@ export function AppRoot() {
       </View>
 
       <Pressable
-        disabled={!selectedThreadId}
-        style={[styles.capture, !selectedThreadId && styles.disabled]}
-        onPress={() => setRoute('capture')}
+        disabled={!selectedThreadId || Boolean(pendingDraftMeeting)}
+        style={[styles.capture, (!selectedThreadId || Boolean(pendingDraftMeeting)) && styles.disabled]}
+        onPress={() => { setCurrentMeeting(null); setRoute('capture'); }}
       >
         <View style={styles.captureDot} />
         <View style={{ flex: 1 }}>
           <Text style={styles.captureTitle}>Start a meeting</Text>
-          <Text style={styles.captureBody}>Recording into {selectedThread?.title ?? 'your selected thread'}.</Text>
+          <Text style={styles.captureBody}>{pendingDraftMeeting ? 'Resolve the unfinished capture first.' : `Recording into ${selectedThread?.title ?? 'your selected thread'}.`}</Text>
         </View>
       </Pressable>
 
@@ -497,6 +582,15 @@ function FeatureLink({ title, body, onPress }: { title: string; body: string; on
 }
 
 const styles = StyleSheet.create({
+  draftCard: { backgroundColor: colors.redSoft, borderRadius: 18, padding: 17, marginBottom: 14, borderWidth: 1, borderColor: '#E7BBB7' },
+  draftLabel: { color: colors.red, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
+  draftTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 6 },
+  draftBody: { color: colors.ink, lineHeight: 20, marginTop: 5 },
+  draftActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 },
+  recoverButton: { backgroundColor: colors.forest, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12 },
+  recoverText: { color: 'white', fontWeight: '800' },
+  discardButton: { backgroundColor: colors.paper, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12 },
+  discardText: { color: colors.red, fontWeight: '800' },
   resume: { backgroundColor: colors.amberSoft, borderRadius: 18, padding: 17, marginBottom: 22, borderWidth: 1, borderColor: '#E7C49F' },
   resumeLabel: { color: colors.amber, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
   resumeTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 6 },
