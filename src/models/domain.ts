@@ -115,6 +115,7 @@ export type MeetingProposal = {
   dueAt?: ISODateTime;
   rationale?: string;
   reviewAt?: ISODateTime;
+  supersedesDecisionId?: string;
 };
 
 export type MeetingReview = {
