@@ -111,3 +111,29 @@ export type MeetingProposal = {
   evidence: EvidenceRef[];
   state: ProposalState;
 };
+
+export type MeetingReview = {
+  id: string;
+  meetingId: string;
+  transcript: Transcript;
+  proposals: MeetingProposal[];
+  updatedAt: ISODateTime;
+};
+
+export type MemoryChangeKind = 'decision' | 'commitment' | 'assumption';
+export type MemoryChangeType = 'new' | 'changed' | 'superseded' | 'removed' | 'unresolved';
+
+export type MemoryChange = {
+  kind: MemoryChangeKind;
+  id: string;
+  change: MemoryChangeType;
+  label: string;
+};
+
+export type MeetingChangeSet = {
+  id: string;
+  meetingId: string;
+  threadId: string;
+  changes: MemoryChange[];
+  createdAt: ISODateTime;
+};
