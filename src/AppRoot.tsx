@@ -3,6 +3,8 @@ import { Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-n
 import { Header, Screen, screenStyles } from './components/Screen';
 import { AssumptionRegisterScreen } from './features/assumptions/AssumptionRegisterScreen';
 import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScreen';
+import { contradictionFromProposal } from './features/contradictions/contradictionProposal';
+import { ContradictionReviewScreen } from './features/contradictions/ContradictionReviewScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
 import { DecisionLedgerScreen } from './features/decisions/DecisionLedgerScreen';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
@@ -13,6 +15,7 @@ import { promotePrivateNote, returnPrivateNoteToSidecar } from './features/priva
 import type {
   Assumption,
   Commitment,
+  Contradiction,
   Decision,
   Meeting,
   MeetingChangeSet,
@@ -24,6 +27,7 @@ import { mockProviders } from './services/mockProviders';
 import {
   AssumptionRepository,
   CommitmentRepository,
+  ContradictionRepository,
   DecisionRepository,
   MeetingChangeSetRepository,
   MeetingRepository,
@@ -33,7 +37,7 @@ import {
 } from './storage/repositories';
 import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'contradictions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -46,6 +50,7 @@ export function AppRoot() {
     decisions: new DecisionRepository(),
     commitments: new CommitmentRepository(),
     assumptions: new AssumptionRepository(),
+    contradictions: new ContradictionRepository(),
     privateNotes: new PrivateNoteRepository(),
   }), []);
 
@@ -58,6 +63,7 @@ export function AppRoot() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [assumptions, setAssumptions] = useState<Assumption[]>([]);
+  const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [privateNotes, setPrivateNotes] = useState<PrivateNote[]>([]);
   const [changeSets, setChangeSets] = useState<MeetingChangeSet[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
@@ -67,11 +73,12 @@ export function AppRoot() {
   const [pendingReview, setPendingReview] = useState<MeetingReview | null>(null);
 
   const refresh = async () => {
-    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextPrivateNotes, nextThreads, nextChangeSets] = await Promise.all([
+    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextContradictions, nextPrivateNotes, nextThreads, nextChangeSets] = await Promise.all([
       repositories.meetings.list(),
       repositories.decisions.list(),
       repositories.commitments.list(),
       repositories.assumptions.list(),
+      repositories.contradictions.list(),
       repositories.privateNotes.list(),
       repositories.threads.list(),
       repositories.changes.list(),
@@ -88,6 +95,7 @@ export function AppRoot() {
     setDecisions(nextDecisions);
     setCommitments(nextCommitments);
     setAssumptions(nextAssumptions);
+    setContradictions(nextContradictions);
     setPrivateNotes(nextPrivateNotes);
     setThreads(nextThreads);
     setChangeSets(nextChangeSets);
@@ -108,6 +116,7 @@ export function AppRoot() {
   const threadDecisions = decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadCommitments = commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadAssumptions = assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadContradictions = contradictions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
   const counts = {
@@ -272,6 +281,10 @@ export function AppRoot() {
         };
         await repositories.assumptions.upsert(assumption);
       }
+      if (proposal.kind === 'contradiction') {
+        const contradiction = contradictionFromProposal(proposal, threadId);
+        if (contradiction) await repositories.contradictions.upsert(contradiction);
+      }
     }
 
     const current = await loadThreadState(threadId);
@@ -324,6 +337,11 @@ export function AppRoot() {
 
   const updateAssumption = async (assumption: Assumption) => {
     await repositories.assumptions.upsert(assumption);
+    await refresh();
+  };
+
+  const updateContradiction = async (contradiction: Contradiction) => {
+    await repositories.contradictions.upsert(contradiction);
     await refresh();
   };
 
@@ -385,60 +403,29 @@ export function AppRoot() {
   }
 
   if (route === 'decisions') {
-    return (
-      <DecisionLedgerScreen
-        decisions={threadDecisions}
-        threadTitle={selectedThread?.title ?? 'Meeting thread'}
-        onUpdate={updateDecision}
-        onBack={() => setRoute('home')}
-      />
-    );
+    return <DecisionLedgerScreen decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateDecision} onBack={() => setRoute('home')} />;
   }
 
   if (route === 'commitments') {
-    return (
-      <CommitmentRadarScreen
-        commitments={threadCommitments}
-        threadTitle={selectedThread?.title ?? 'Meeting thread'}
-        onUpdate={updateCommitment}
-        onBack={() => setRoute('home')}
-      />
-    );
+    return <CommitmentRadarScreen commitments={threadCommitments} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
   }
 
   if (route === 'assumptions') {
-    return (
-      <AssumptionRegisterScreen
-        assumptions={threadAssumptions}
-        threadTitle={selectedThread?.title ?? 'Meeting thread'}
-        onUpdate={updateAssumption}
-        onBack={() => setRoute('home')}
-      />
-    );
+    return <AssumptionRegisterScreen assumptions={threadAssumptions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
+  }
+
+  if (route === 'contradictions') {
+    return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
   }
 
   if (route === 'private-notes') {
-    return (
-      <PrivateSidecarScreen
-        notes={threadPrivateNotes}
-        threadTitle={selectedThread?.title ?? 'Meeting thread'}
-        onCreate={createPrivateNote}
-        onPromote={promoteNote}
-        onReturnPrivate={makeNotePrivate}
-        onDelete={deletePrivateNote}
-        onBack={() => setRoute('home')}
-      />
-    );
+    return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
   }
 
   return (
     <Screen>
       <StatusBar barStyle="dark-content" />
-      <Header
-        eyebrow="CONVOWEAVE"
-        title="Your meetings should remember each other."
-        body="Capture into a thread, confirm the important memory, and see exactly what changed from one meeting to the next."
-      />
+      <Header eyebrow="CONVOWEAVE" title="Your meetings should remember each other." body="Capture into a thread, confirm the important memory, and see exactly what changed from one meeting to the next." />
 
       {pendingDraftMeeting ? (
         <View style={styles.draftCard}>
@@ -446,14 +433,8 @@ export function AppRoot() {
           <Text style={styles.draftTitle}>{pendingDraftMeeting.title}</Text>
           <Text style={styles.draftBody}>Checkpointed at {Math.round(pendingDraftMeeting.durationMs / 1000)} seconds. {pendingDraftMeeting.audioUri ? 'A local recording reference is available.' : 'No recoverable recording reference is available yet.'}</Text>
           <View style={styles.draftActions}>
-            {pendingDraftMeeting.audioUri ? (
-              <Pressable style={styles.recoverButton} onPress={() => recoverDraft(pendingDraftMeeting)}>
-                <Text style={styles.recoverText}>Review recovered draft</Text>
-              </Pressable>
-            ) : null}
-            <Pressable style={styles.discardButton} onPress={() => discardDraft(pendingDraftMeeting)}>
-              <Text style={styles.discardText}>Discard draft</Text>
-            </Pressable>
+            {pendingDraftMeeting.audioUri ? <Pressable style={styles.recoverButton} onPress={() => recoverDraft(pendingDraftMeeting)}><Text style={styles.recoverText}>Review recovered draft</Text></Pressable> : null}
+            <Pressable style={styles.discardButton} onPress={() => discardDraft(pendingDraftMeeting)}><Text style={styles.discardText}>Discard draft</Text></Pressable>
           </View>
         </View>
       ) : null}
@@ -469,34 +450,18 @@ export function AppRoot() {
       <Text style={styles.section}>Meeting thread</Text>
       <View style={styles.threadWrap}>
         {threads.map((thread) => (
-          <Pressable
-            key={thread.id}
-            onPress={() => setSelectedThreadId(thread.id)}
-            style={[styles.threadChip, selectedThreadId === thread.id && styles.threadChipSelected]}
-          >
+          <Pressable key={thread.id} onPress={() => setSelectedThreadId(thread.id)} style={[styles.threadChip, selectedThreadId === thread.id && styles.threadChipSelected]}>
             <Text style={[styles.threadChipText, selectedThreadId === thread.id && styles.threadChipTextSelected]}>{thread.title}</Text>
           </Pressable>
         ))}
       </View>
 
       <View style={styles.newThreadRow}>
-        <TextInput
-          value={newThreadTitle}
-          onChangeText={setNewThreadTitle}
-          placeholder="New thread name"
-          placeholderTextColor={colors.muted}
-          style={styles.newThreadInput}
-        />
-        <Pressable style={styles.addThreadButton} onPress={createThread}>
-          <Text style={styles.addThreadText}>Add</Text>
-        </Pressable>
+        <TextInput value={newThreadTitle} onChangeText={setNewThreadTitle} placeholder="New thread name" placeholderTextColor={colors.muted} style={styles.newThreadInput} />
+        <Pressable style={styles.addThreadButton} onPress={createThread}><Text style={styles.addThreadText}>Add</Text></Pressable>
       </View>
 
-      <Pressable
-        disabled={!selectedThreadId || Boolean(pendingDraftMeeting)}
-        style={[styles.capture, (!selectedThreadId || Boolean(pendingDraftMeeting)) && styles.disabled]}
-        onPress={() => { setCurrentMeeting(null); setRoute('capture'); }}
-      >
+      <Pressable disabled={!selectedThreadId || Boolean(pendingDraftMeeting)} style={[styles.capture, (!selectedThreadId || Boolean(pendingDraftMeeting)) && styles.disabled]} onPress={() => { setCurrentMeeting(null); setRoute('capture'); }}>
         <View style={styles.captureDot} />
         <View style={{ flex: 1 }}>
           <Text style={styles.captureTitle}>Start a meeting</Text>
@@ -510,32 +475,15 @@ export function AppRoot() {
         <Metric value={counts.assumptions} label="assumptions" />
       </View>
 
-      <FeatureLink
-        title="Decision Ledger"
-        body="Review active, disputed, reversed, and superseded decisions with source proof."
-        onPress={() => setRoute('decisions')}
-      />
-      <FeatureLink
-        title="Commitment Radar"
-        body="See promises that are open, due soon, overdue, completed, or cancelled."
-        onPress={() => setRoute('commitments')}
-      />
-      <FeatureLink
-        title="Assumption Register"
-        body="Keep unverified beliefs visible until they are supported, disproven, or expired."
-        onPress={() => setRoute('assumptions')}
-      />
-      <FeatureLink
-        title="Private Sidecar"
-        body={`${threadPrivateNotes.filter((note) => !note.promotedAt).length} private notes excluded from shared context.`}
-        onPress={() => setRoute('private-notes')}
-      />
+      <FeatureLink title="Decision Ledger" body="Review active, disputed, reversed, and superseded decisions with source proof." onPress={() => setRoute('decisions')} />
+      <FeatureLink title="Commitment Radar" body="See promises that are open, due soon, overdue, completed, or cancelled." onPress={() => setRoute('commitments')} />
+      <FeatureLink title="Assumption Register" body="Keep unverified beliefs visible until they are supported, disproven, or expired." onPress={() => setRoute('assumptions')} />
+      <FeatureLink title="Contradiction Review" body={`${threadContradictions.filter((item) => item.status === 'proposed').length} evidence-backed conflicts waiting for review.`} onPress={() => setRoute('contradictions')} />
+      <FeatureLink title="Private Sidecar" body={`${threadPrivateNotes.filter((note) => !note.promotedAt).length} private notes excluded from shared context.`} onPress={() => setRoute('private-notes')} />
 
       <Text style={styles.section}>Recent meetings</Text>
       {recentMeetings.length === 0 ? (
-        <View style={screenStyles.card}>
-          <Text style={styles.empty}>No meetings in this thread yet. The first recording will create a durable local draft.</Text>
-        </View>
+        <View style={screenStyles.card}><Text style={styles.empty}>No meetings in this thread yet. The first recording will create a durable local draft.</Text></View>
       ) : recentMeetings.map((meeting) => {
         const hasChanges = changeSetByMeeting.has(meeting.id);
         return (
@@ -543,11 +491,7 @@ export function AppRoot() {
             <Text style={styles.meetingTitle}>{meeting.title}</Text>
             <Text style={styles.meetingMeta}>{meeting.status.toUpperCase()} · {Math.round(meeting.durationMs / 1000)} sec</Text>
             <Text style={styles.meetingMeta}>{new Date(meeting.startedAt).toLocaleString()}</Text>
-            {hasChanges ? (
-              <Pressable style={styles.changeLink} onPress={() => openChanges(meeting.id)}>
-                <Text style={styles.changeLinkText}>View what changed</Text>
-              </Pressable>
-            ) : null}
+            {hasChanges ? <Pressable style={styles.changeLink} onPress={() => openChanges(meeting.id)}><Text style={styles.changeLinkText}>View what changed</Text></Pressable> : null}
           </View>
         );
       })}
@@ -561,21 +505,13 @@ export function AppRoot() {
 }
 
 function Metric({ value, label }: { value: number; label: string }) {
-  return (
-    <View style={styles.metric}>
-      <Text style={styles.metricValue}>{value}</Text>
-      <Text style={styles.metricLabel}>{label}</Text>
-    </View>
-  );
+  return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
 }
 
 function FeatureLink({ title, body, onPress }: { title: string; body: string; onPress: () => void }) {
   return (
     <Pressable style={styles.featureLink} onPress={onPress}>
-      <View style={{ flex: 1 }}>
-        <Text style={styles.featureTitle}>{title}</Text>
-        <Text style={styles.featureBody}>{body}</Text>
-      </View>
+      <View style={{ flex: 1 }}><Text style={styles.featureTitle}>{title}</Text><Text style={styles.featureBody}>{body}</Text></View>
       <Text style={styles.featureArrow}>›</Text>
     </Pressable>
   );
