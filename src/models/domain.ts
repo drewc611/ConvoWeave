@@ -109,6 +109,7 @@ export type MeetingProposal = {
   statement: string;
   confidence: number;
   evidence: EvidenceRef[];
+  priorEvidence?: EvidenceRef[];
   state: ProposalState;
   ownerId?: string;
   dueAt?: ISODateTime;
