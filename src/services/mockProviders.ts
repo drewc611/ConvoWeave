@@ -4,7 +4,15 @@ import type { ProviderBundle } from './providers';
 const wait = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
 
 function evidence(meetingId: string, quote: string, startMs: number, endMs: number): EvidenceRef {
-  return { meetingId, segmentIds: ['mock-segment-1'], startMs, endMs, quote };
+  return { meetingId, segmentIds: ['mock-segment-1'], speakerId: 'speaker-1', startMs, endMs, quote };
+}
+
+function nextFridayAtFive() {
+  const date = new Date();
+  const daysUntilFriday = (5 - date.getDay() + 7) % 7 || 7;
+  date.setDate(date.getDate() + daysUntilFriday);
+  date.setHours(17, 0, 0, 0);
+  return date.toISOString();
 }
 
 export const mockProviders: ProviderBundle = {
@@ -34,6 +42,7 @@ export const mockProviders: ProviderBundle = {
           id: `${meeting.id}:decision:1`,
           kind: 'decision',
           statement: 'Keep the mobile memory loop ahead of calendar integrations.',
+          rationale: 'Prove capture, review, and durable memory before adding external integrations.',
           confidence: 0.91,
           evidence: [evidence(meeting.id, 'keep the mobile memory loop first', 1000, 4100)],
           state: 'proposed',
@@ -42,6 +51,8 @@ export const mockProviders: ProviderBundle = {
           id: `${meeting.id}:commitment:1`,
           kind: 'commitment',
           statement: 'Onboarding flow will be ready Friday.',
+          ownerId: 'speaker-1',
+          dueAt: nextFridayAtFive(),
           confidence: 0.84,
           evidence: [evidence(meeting.id, 'I will have the onboarding flow ready Friday', 4300, 7600)],
           state: 'proposed',
@@ -50,6 +61,7 @@ export const mockProviders: ProviderBundle = {
           id: `${meeting.id}:assumption:1`,
           kind: 'assumption',
           statement: 'The retention model still needs validation.',
+          reviewAt: new Date(Date.now() + 7 * 24 * 60 * 60 * 1000).toISOString(),
           confidence: 0.77,
           evidence: [evidence(meeting.id, 'retention assumption still needs validation', 7800, 11300)],
           state: 'proposed',
