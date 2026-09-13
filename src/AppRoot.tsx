@@ -1,11 +1,14 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from './components/Screen';
+import { AssumptionRegisterScreen } from './features/assumptions/AssumptionRegisterScreen';
 import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
 import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
+import { PrivateSidecarScreen } from './features/private-notes/PrivateSidecarScreen';
+import { promotePrivateNote, returnPrivateNoteToSidecar } from './features/private-notes/privateContext';
 import type {
   Assumption,
   Commitment,
@@ -13,6 +16,7 @@ import type {
   Meeting,
   MeetingChangeSet,
   MeetingReview,
+  PrivateNote,
   Thread,
 } from './models/domain';
 import { mockProviders } from './services/mockProviders';
@@ -23,11 +27,12 @@ import {
   MeetingChangeSetRepository,
   MeetingRepository,
   MeetingReviewRepository,
+  PrivateNoteRepository,
   ThreadRepository,
 } from './storage/repositories';
 import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review' | 'changes' | 'commitments';
+type Route = 'home' | 'capture' | 'review' | 'changes' | 'commitments' | 'assumptions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -40,6 +45,7 @@ export function AppRoot() {
     decisions: new DecisionRepository(),
     commitments: new CommitmentRepository(),
     assumptions: new AssumptionRepository(),
+    privateNotes: new PrivateNoteRepository(),
   }), []);
 
   const [route, setRoute] = useState<Route>('home');
@@ -51,6 +57,7 @@ export function AppRoot() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [assumptions, setAssumptions] = useState<Assumption[]>([]);
+  const [privateNotes, setPrivateNotes] = useState<PrivateNote[]>([]);
   const [changeSets, setChangeSets] = useState<MeetingChangeSet[]>([]);
   const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [newThreadTitle, setNewThreadTitle] = useState('');
@@ -58,11 +65,12 @@ export function AppRoot() {
   const [pendingReview, setPendingReview] = useState<MeetingReview | null>(null);
 
   const refresh = async () => {
-    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextThreads, nextChangeSets] = await Promise.all([
+    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextPrivateNotes, nextThreads, nextChangeSets] = await Promise.all([
       repositories.meetings.list(),
       repositories.decisions.list(),
       repositories.commitments.list(),
       repositories.assumptions.list(),
+      repositories.privateNotes.list(),
       repositories.threads.list(),
       repositories.changes.list(),
     ]);
@@ -78,6 +86,7 @@ export function AppRoot() {
     setDecisions(nextDecisions);
     setCommitments(nextCommitments);
     setAssumptions(nextAssumptions);
+    setPrivateNotes(nextPrivateNotes);
     setThreads(nextThreads);
     setChangeSets(nextChangeSets);
     setSelectedThreadId((current) => {
@@ -94,11 +103,13 @@ export function AppRoot() {
 
   const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
   const threadCommitments = commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadAssumptions = assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
   const counts = {
     decisions: decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId).length,
     commitments: threadCommitments.filter((item) => item.status === 'open').length,
-    assumptions: assumptions.filter((item) => (!selectedThreadId || item.threadId === selectedThreadId) && item.status === 'untested').length,
+    assumptions: threadAssumptions.filter((item) => item.status === 'untested').length,
   };
   const changeSetByMeeting = new Map(changeSets.map((item) => [item.meetingId, item]));
 
@@ -109,7 +120,6 @@ export function AppRoot() {
     const thread: Thread = { id: makeId('thread'), title, createdAt: now, updatedAt: now };
     await repositories.threads.upsert(thread);
     setNewThreadTitle('');
-    setSelectedThreadId(thread.id);
     await refresh();
     setSelectedThreadId(thread.id);
   };
@@ -245,6 +255,40 @@ export function AppRoot() {
     await refresh();
   };
 
+  const updateAssumption = async (assumption: Assumption) => {
+    await repositories.assumptions.upsert(assumption);
+    await refresh();
+  };
+
+  const createPrivateNote = async (body: string) => {
+    if (!selectedThreadId) return;
+    const now = new Date().toISOString();
+    const note: PrivateNote = {
+      id: makeId('private-note'),
+      threadId: selectedThreadId,
+      body,
+      createdAt: now,
+      updatedAt: now,
+    };
+    await repositories.privateNotes.upsert(note);
+    await refresh();
+  };
+
+  const promoteNote = async (note: PrivateNote) => {
+    await repositories.privateNotes.upsert(promotePrivateNote(note));
+    await refresh();
+  };
+
+  const makeNotePrivate = async (note: PrivateNote) => {
+    await repositories.privateNotes.upsert(returnPrivateNoteToSidecar(note));
+    await refresh();
+  };
+
+  const deletePrivateNote = async (note: PrivateNote) => {
+    await repositories.privateNotes.remove(note.id);
+    await refresh();
+  };
+
   if (route === 'capture') {
     return <CaptureScreen onCancel={() => setRoute('home')} onFinished={finishCapture} />;
   }
@@ -272,6 +316,31 @@ export function AppRoot() {
         commitments={threadCommitments}
         threadTitle={selectedThread?.title ?? 'Meeting thread'}
         onUpdate={updateCommitment}
+        onBack={() => setRoute('home')}
+      />
+    );
+  }
+
+  if (route === 'assumptions') {
+    return (
+      <AssumptionRegisterScreen
+        assumptions={threadAssumptions}
+        threadTitle={selectedThread?.title ?? 'Meeting thread'}
+        onUpdate={updateAssumption}
+        onBack={() => setRoute('home')}
+      />
+    );
+  }
+
+  if (route === 'private-notes') {
+    return (
+      <PrivateSidecarScreen
+        notes={threadPrivateNotes}
+        threadTitle={selectedThread?.title ?? 'Meeting thread'}
+        onCreate={createPrivateNote}
+        onPromote={promoteNote}
+        onReturnPrivate={makeNotePrivate}
+        onDelete={deletePrivateNote}
         onBack={() => setRoute('home')}
       />
     );
@@ -338,13 +407,21 @@ export function AppRoot() {
         <Metric value={counts.assumptions} label="assumptions" />
       </View>
 
-      <Pressable style={styles.radarLink} onPress={() => setRoute('commitments')}>
-        <View style={{ flex: 1 }}>
-          <Text style={styles.radarTitle}>Commitment Radar</Text>
-          <Text style={styles.radarBody}>See promises that are open, due soon, overdue, completed, or cancelled.</Text>
-        </View>
-        <Text style={styles.radarArrow}>›</Text>
-      </Pressable>
+      <FeatureLink
+        title="Commitment Radar"
+        body="See promises that are open, due soon, overdue, completed, or cancelled."
+        onPress={() => setRoute('commitments')}
+      />
+      <FeatureLink
+        title="Assumption Register"
+        body="Keep unverified beliefs visible until they are supported, disproven, or expired."
+        onPress={() => setRoute('assumptions')}
+      />
+      <FeatureLink
+        title="Private Sidecar"
+        body={`${threadPrivateNotes.filter((note) => !note.promotedAt).length} private notes excluded from shared context.`}
+        onPress={() => setRoute('private-notes')}
+      />
 
       <Text style={styles.section}>Recent meetings</Text>
       {recentMeetings.length === 0 ? (
@@ -369,7 +446,7 @@ export function AppRoot() {
 
       <View style={styles.privateNote}>
         <Text style={styles.privateTitle}>Private by design</Text>
-        <Text style={styles.privateBody}>Raw audio, saved reviews, and local memory stay on this device in the current alpha. Provider uploads remain disabled.</Text>
+        <Text style={styles.privateBody}>Raw audio, saved reviews, and unpromoted Sidecar notes stay outside shared AI context. Provider uploads remain disabled in the current alpha.</Text>
       </View>
     </Screen>
   );
@@ -381,6 +458,18 @@ function Metric({ value, label }: { value: number; label: string }) {
       <Text style={styles.metricValue}>{value}</Text>
       <Text style={styles.metricLabel}>{label}</Text>
     </View>
+  );
+}
+
+function FeatureLink({ title, body, onPress }: { title: string; body: string; onPress: () => void }) {
+  return (
+    <Pressable style={styles.featureLink} onPress={onPress}>
+      <View style={{ flex: 1 }}>
+        <Text style={styles.featureTitle}>{title}</Text>
+        <Text style={styles.featureBody}>{body}</Text>
+      </View>
+      <Text style={styles.featureArrow}>›</Text>
+    </Pressable>
   );
 }
 
@@ -408,16 +497,16 @@ const styles = StyleSheet.create({
   metric: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 15, padding: 12 },
   metricValue: { color: colors.ink, fontSize: 24, fontWeight: '800' },
   metricLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  radarLink: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 24 },
-  radarTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
-  radarBody: { color: colors.muted, lineHeight: 19, marginTop: 4 },
-  radarArrow: { color: colors.forest, fontSize: 28, marginLeft: 10 },
+  featureLink: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
+  featureTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
+  featureBody: { color: colors.muted, lineHeight: 19, marginTop: 4 },
+  featureArrow: { color: colors.forest, fontSize: 28, marginLeft: 10 },
   empty: { color: colors.muted, lineHeight: 21 },
   meetingTitle: { color: colors.ink, fontSize: 17, fontWeight: '800', marginBottom: 7 },
   meetingMeta: { color: colors.muted, lineHeight: 19 },
   changeLink: { alignSelf: 'flex-start', backgroundColor: colors.forestSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 },
   changeLinkText: { color: colors.forest, fontWeight: '800', fontSize: 12 },
-  privateNote: { backgroundColor: colors.forestSoft, borderRadius: 18, padding: 18, marginTop: 8 },
+  privateNote: { backgroundColor: colors.forestSoft, borderRadius: 18, padding: 18, marginTop: 18 },
   privateTitle: { color: colors.forest, fontWeight: '900', marginBottom: 6 },
   privateBody: { color: colors.ink, lineHeight: 21 },
 });
