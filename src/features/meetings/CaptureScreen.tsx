@@ -1,3 +1,4 @@
+import { useEffect, useRef } from 'react';
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import { colors } from '../../theme';
@@ -9,13 +10,42 @@ function time(ms: number) {
   return `${String(minutes).padStart(2, '0')}:${String(seconds % 60).padStart(2, '0')}`;
 }
 
-export function CaptureScreen({ onCancel, onFinished }: { onCancel: () => void; onFinished: (audioUri: string | undefined, durationMs: number) => void }) {
+type CaptureScreenProps = {
+  onCancel: () => void;
+  onStarted: (audioUri?: string) => Promise<void> | void;
+  onCheckpoint: (audioUri: string | undefined, durationMs: number) => Promise<void> | void;
+  onFinished: (audioUri: string | undefined, durationMs: number) => Promise<void> | void;
+};
+
+export function CaptureScreen({ onCancel, onStarted, onCheckpoint, onFinished }: CaptureScreenProps) {
   const recorder = useMeetingRecorder();
   const active = recorder.captureState === 'recording' || recorder.captureState === 'paused';
+  const lastCheckpoint = useRef(-1);
+
+  useEffect(() => {
+    if (!active) return;
+    const bucket = Math.floor(recorder.durationMs / 5000);
+    if (bucket === lastCheckpoint.current) return;
+    lastCheckpoint.current = bucket;
+    void onCheckpoint(recorder.audioUri, recorder.durationMs);
+  }, [active, onCheckpoint, recorder.audioUri, recorder.durationMs]);
+
+  useEffect(() => {
+    if (recorder.captureState === 'interrupted') {
+      void onCheckpoint(recorder.audioUri, recorder.durationMs);
+    }
+  }, [onCheckpoint, recorder.audioUri, recorder.captureState, recorder.durationMs]);
+
+  const start = async () => {
+    const started = await recorder.start();
+    if (!started) return;
+    lastCheckpoint.current = 0;
+    await onStarted(recorder.audioUri);
+  };
 
   const finish = async () => {
     const uri = await recorder.stop();
-    onFinished(uri ?? undefined, recorder.durationMs);
+    await onFinished(uri ?? recorder.audioUri, recorder.durationMs);
   };
 
   return (
@@ -34,11 +64,11 @@ export function CaptureScreen({ onCancel, onFinished }: { onCancel: () => void; 
       </View>
 
       {recorder.captureState === 'denied' ? <Text style={styles.error}>Microphone permission was denied. Enable microphone access in system settings to record.</Text> : null}
-      {recorder.captureState === 'interrupted' ? <Text style={styles.error}>Recording was interrupted by the operating system. Finish this draft and start a new capture.</Text> : null}
+      {recorder.captureState === 'interrupted' ? <Text style={styles.error}>Recording was interrupted by the operating system. The last local draft checkpoint has been preserved.</Text> : null}
       {recorder.error ? <Text style={styles.error}>{recorder.error}</Text> : null}
 
       {recorder.captureState === 'idle' || recorder.captureState === 'denied' ? (
-        <Pressable style={screenStyles.button} onPress={recorder.start}>
+        <Pressable style={screenStyles.button} onPress={start}>
           <Text style={screenStyles.buttonText}>Start recording</Text>
         </Pressable>
       ) : null}
