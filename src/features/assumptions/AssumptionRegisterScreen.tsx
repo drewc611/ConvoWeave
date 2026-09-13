@@ -1,5 +1,6 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
+import { SourceProof } from '../../components/SourceProof';
 import type { Assumption } from '../../models/domain';
 import { colors } from '../../theme';
 
@@ -40,7 +41,7 @@ export function AssumptionRegisterScreen({
               {assumption.reviewAt ? <Text style={styles.review}>Review {new Date(assumption.reviewAt).toLocaleDateString()}</Text> : null}
             </View>
             <Text style={styles.title}>{assumption.statement}</Text>
-            <Text style={styles.source}>{assumption.evidence[0]?.quote ? `Source: “${assumption.evidence[0].quote}”` : 'Source evidence retained with assumption'}</Text>
+            <SourceProof evidence={assumption.evidence} compact />
 
             <View style={styles.actions}>
               <Pressable style={styles.supportButton} onPress={() => transition(assumption, 'supported')}>
@@ -82,7 +83,6 @@ const styles = StyleSheet.create({
   review: { color: colors.muted, fontSize: 12 },
   title: { color: colors.ink, fontSize: 18, lineHeight: 24, fontWeight: '800' },
   body: { color: colors.muted, lineHeight: 20, marginTop: 7 },
-  source: { color: colors.muted, fontSize: 12, lineHeight: 18, marginTop: 10 },
   actions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 15 },
   supportButton: { backgroundColor: colors.forestSoft, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 11 },
   supportText: { color: colors.forest, fontWeight: '800' },
