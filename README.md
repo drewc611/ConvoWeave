@@ -1,96 +1,50 @@
 # ConvoWeave
 
-**Your conversations. Connected.**
+**The AI companion that remembers your meetings.**
 
-ConvoWeave is a mobile-first AI meeting companion designed to turn conversations into trusted, versioned operational memory.
+ConvoWeave is a mobile-first meeting memory and decision system. It is designed to preserve what changed across conversations, who committed to what, why decisions were made, and which assumptions or contradictions still need attention.
 
-Instead of treating each meeting as an isolated transcript, ConvoWeave tracks how decisions, commitments, assumptions, and unresolved questions evolve across meetings.
+## Current alpha
 
-## Current build
+The `build/mobile-foundation` branch now includes:
 
-The first mobile prototype includes:
+- real on-device microphone capture with explicit permission and recording notice
+- pause, resume, stop, duration tracking, and interruption handling
+- persistent local audio files for recorded meetings
+- SQLite-backed durable local state
+- strict domain models for meetings, evidence, decisions, commitments, assumptions, contradictions, and private notes
+- human review before AI-generated proposals become durable memory
+- source evidence retained with accepted decisions, commitments, and assumptions
+- deterministic decision-diff logic for the future `What Changed?` experience
+- provider interfaces that keep transcription/extraction logic out of UI components
+- mock providers for safe local development
+- CI typechecking and unit tests
 
-- Today view with meeting capture entry point
-- What Changed pre-meeting brief
-- Decision Ledger concepts
-- decision lineage across meetings
-- Commitment Radar
-- contradiction detection surface
-- Assumption Register
-- source-proof expansion for AI claims
-- persistent meeting thread concept
-- private sidecar notes
-- interactive mobile navigation and state
-
-## Product thesis
-
-Transcription, summaries, action items, and meeting chat are baseline features.
-
-ConvoWeave is being built around a different question:
-
-> What changed, why did it change, who committed to what, and what still needs resolution?
-
-See [`docs/PRODUCT_STRATEGY.md`](docs/PRODUCT_STRATEGY.md) for the product roadmap and differentiation strategy.
-
-## Engineering handoff
-
-If using Codex or another coding agent, read [`CODEX.md`](CODEX.md) before modifying the application.
-
-The handoff defines:
-
-- product invariants
-- immediate build sequence
-- domain model direction
-- evidence requirements
-- private/shared data boundaries
-- alpha definition of done
-
-## Stack
-
-- Expo SDK 57
-- React Native 0.86
-- React 19.2
-- TypeScript
-
-## Run locally
-
-Requirements:
-
-- Node.js 22.13 or later for Expo SDK 57
-- npm
-- Expo-compatible iOS or Android development environment
+## Development
 
 ```bash
 npm install
+npm run typecheck
+npm test
 npm start
 ```
 
-Then choose the iOS, Android, or supported Expo development target.
+Then open the app in Expo Go or a compatible development build.
 
-Type checking:
+## Architecture
 
-```bash
-npm run typecheck
-```
+Read these first:
 
-## Build order
+- `CODEX.md`
+- `docs/PRODUCT_STRATEGY.md`
+- `LICENSE`
 
-1. Mobile shell and product model
-2. Real mobile audio capture
-3. Local durable/offline state
-4. Meeting review and evidence workflow
-5. Transcription/extraction provider interfaces
-6. Meeting threads and Decision Ledger
-7. Decision Diff and contradiction proposals
-8. Pre-meeting intelligence
-9. Integrations after the core memory loop is proven
+The application intentionally separates raw evidence from generated interpretation. Important AI output must retain source references. Decisions are versioned business objects, not mutable summary text.
 
-## Repository status
+## Privacy direction
 
-Early product development. The UI currently uses representative local data to demonstrate the intended experience before backend and model-provider integration.
+The current alpha keeps audio and persisted state on device. The mock AI provider does not upload audio. A future backend/model integration must use an explicit upload policy and must not put provider credentials in the mobile client.
 
-## License
+## Proprietary software
 
-**Proprietary. All rights reserved.**
-
-This source code is not open source. See [`LICENSE`](LICENSE). Access to the repository does not grant permission to copy, modify, distribute, sublicense, sell, or commercially exploit the code.
+Copyright © 2026 Andrew Michael Clark. All rights reserved. See `LICENSE`.
