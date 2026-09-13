@@ -1,4 +1,4 @@
-import { useMemo, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import {
   RecordingPresets,
   requestRecordingPermissionsAsync,
@@ -15,6 +15,12 @@ export function useMeetingRecorder() {
   const recorderState = useAudioRecorderState(recorder, 250);
   const [captureState, setCaptureState] = useState<CaptureState>('idle');
   const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (recorderState.mediaServicesDidReset) {
+      setCaptureState('interrupted');
+    }
+  }, [recorderState.mediaServicesDidReset]);
 
   const start = async () => {
     setError(null);
@@ -51,11 +57,6 @@ export function useMeetingRecorder() {
       return null;
     }
   };
-
-  const interrupted = recorderState.mediaServicesDidReset;
-  if (interrupted && captureState !== 'interrupted') {
-    setCaptureState('interrupted');
-  }
 
   return {
     captureState,
