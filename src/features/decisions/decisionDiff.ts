@@ -1,4 +1,4 @@
-import type { Assumption, Commitment, Decision } from '../../models/domain';
+import type { Assumption, Commitment, Decision, MemoryChange } from '../../models/domain';
 
 export type ThreadState = {
   decisions: Decision[];
@@ -6,17 +6,10 @@ export type ThreadState = {
   assumptions: Assumption[];
 };
 
-export type DiffEntry = {
-  kind: 'decision' | 'commitment' | 'assumption';
-  id: string;
-  change: 'new' | 'changed' | 'superseded' | 'removed' | 'unresolved';
-  label: string;
-};
-
 const byId = <T extends { id: string }>(items: T[]) => new Map(items.map((item) => [item.id, item]));
 
-export function buildDecisionDiff(prior: ThreadState, current: ThreadState): DiffEntry[] {
-  const changes: DiffEntry[] = [];
+export function buildDecisionDiff(prior: ThreadState, current: ThreadState): MemoryChange[] {
+  const changes: MemoryChange[] = [];
 
   compare('decision', prior.decisions, current.decisions, (item) => item.statement, (item) => item.status === 'superseded' || item.status === 'reversed', changes);
   compare('commitment', prior.commitments, current.commitments, (item) => item.statement, (item) => item.status === 'superseded' || item.status === 'cancelled', changes);
@@ -32,12 +25,12 @@ export function buildDecisionDiff(prior: ThreadState, current: ThreadState): Dif
 }
 
 function compare<T extends { id: string }>(
-  kind: DiffEntry['kind'],
+  kind: MemoryChange['kind'],
   prior: T[],
   current: T[],
   label: (item: T) => string,
   isSuperseded: (item: T) => boolean,
-  target: DiffEntry[],
+  target: MemoryChange[],
 ) {
   const previous = byId(prior);
   const next = byId(current);
