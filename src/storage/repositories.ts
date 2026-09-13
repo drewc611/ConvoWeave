@@ -4,6 +4,8 @@ import type {
   Contradiction,
   Decision,
   Meeting,
+  MeetingChangeSet,
+  MeetingReview,
   PrivateNote,
   Thread,
 } from '../models/domain';
@@ -16,7 +18,16 @@ export interface Repository<T extends { id: string }> {
   remove(id: string): Promise<void>;
 }
 
-type EntityKind = 'meeting' | 'thread' | 'decision' | 'commitment' | 'assumption' | 'contradiction' | 'private-note';
+type EntityKind =
+  | 'meeting'
+  | 'meeting-review'
+  | 'meeting-change-set'
+  | 'thread'
+  | 'decision'
+  | 'commitment'
+  | 'assumption'
+  | 'contradiction'
+  | 'private-note';
 type EntityRow = { payload: string };
 
 class SQLiteEntityRepository<T extends { id: string }> implements Repository<T> {
@@ -61,6 +72,8 @@ class SQLiteEntityRepository<T extends { id: string }> implements Repository<T> 
 }
 
 export class MeetingRepository extends SQLiteEntityRepository<Meeting> { constructor() { super('meeting'); } }
+export class MeetingReviewRepository extends SQLiteEntityRepository<MeetingReview> { constructor() { super('meeting-review'); } }
+export class MeetingChangeSetRepository extends SQLiteEntityRepository<MeetingChangeSet> { constructor() { super('meeting-change-set'); } }
 export class ThreadRepository extends SQLiteEntityRepository<Thread> { constructor() { super('thread'); } }
 export class DecisionRepository extends SQLiteEntityRepository<Decision> { constructor() { super('decision'); } }
 export class CommitmentRepository extends SQLiteEntityRepository<Commitment> { constructor() { super('commitment'); } }
