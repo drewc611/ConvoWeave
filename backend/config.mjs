@@ -1,6 +1,6 @@
 const ENVIRONMENTS = new Set(['development', 'preview', 'production']);
 const AUTH_MODES = new Set(['development-token']);
-const PROCESSING_PROVIDERS = new Set(['deterministic']);
+const PROCESSING_PROVIDERS = new Set(['deterministic', 'openai']);
 
 function parsePort(value) {
   const port = Number.parseInt(value ?? '8787', 10);
@@ -8,6 +8,13 @@ function parsePort(value) {
     throw new Error(`Invalid PORT: ${value}`);
   }
   return port;
+}
+
+function parsePositiveInteger(value, fallback, name) {
+  if (value === undefined || value === '') return fallback;
+  const parsed = Number.parseInt(value, 10);
+  if (!Number.isInteger(parsed) || parsed <= 0) throw new Error(`Invalid ${name}: ${value}`);
+  return parsed;
 }
 
 function normalizeOptionalUrl(value) {
@@ -38,6 +45,11 @@ export function loadBackendConfig(env = process.env) {
     throw new Error('CONVOWEAVE_DEV_TOKEN is required when using development-token auth.');
   }
 
+  const openaiApiKey = env.OPENAI_API_KEY?.trim();
+  if (processingProvider === 'openai' && !openaiApiKey) {
+    throw new Error('OPENAI_API_KEY is required when using the openai processing provider.');
+  }
+
   if (environment === 'production' && authMode === 'development-token') {
     throw new Error('Production cannot use development-token authentication. Configure a production auth adapter before deployment.');
   }
@@ -59,5 +71,12 @@ export function loadBackendConfig(env = process.env) {
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
     publicBaseUrl,
+    openai: processingProvider === 'openai' ? {
+      apiKey: openaiApiKey,
+      baseUrl: normalizeOptionalUrl(env.OPENAI_BASE_URL) ?? 'https://api.openai.com',
+      transcriptionModel: env.OPENAI_TRANSCRIPTION_MODEL?.trim() || 'gpt-transcribe',
+      extractionModel: env.OPENAI_EXTRACTION_MODEL?.trim() || 'gpt-5.6-luna',
+      timeoutMs: parsePositiveInteger(env.OPENAI_TIMEOUT_MS, 60000, 'OPENAI_TIMEOUT_MS'),
+    } : undefined,
   };
 }
