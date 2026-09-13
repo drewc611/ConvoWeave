@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
+import { SourceProof } from '../../components/SourceProof';
 import type { Meeting, MeetingProposal, MeetingReview, Transcript } from '../../models/domain';
 import type { ProviderBundle } from '../../services/providers';
 import { colors } from '../../theme';
@@ -113,7 +114,11 @@ export function ReviewScreen({ meeting, providers, initialReview, onProgress, on
             value={proposal.statement}
             onChangeText={(statement) => patch(proposal.id, { statement })}
           />
-          <Text style={styles.evidence}>Source: {proposal.evidence[0]?.quote ?? 'No quote available'}</Text>
+          {proposal.ownerId ? <Text style={styles.metadata}>Owner: {proposal.ownerId}</Text> : null}
+          {proposal.dueAt ? <Text style={styles.metadata}>Due: {new Date(proposal.dueAt).toLocaleString()}</Text> : null}
+          {proposal.rationale ? <Text style={styles.metadata}>Rationale: {proposal.rationale}</Text> : null}
+          {proposal.reviewAt ? <Text style={styles.metadata}>Review: {new Date(proposal.reviewAt).toLocaleString()}</Text> : null}
+          <SourceProof evidence={proposal.evidence} />
           <View style={styles.rowActions}>
             <Pressable style={styles.smallButton} onPress={() => patch(proposal.id, { state: 'accepted' })}>
               <Text style={styles.smallButtonText}>Accept</Text>
@@ -145,7 +150,7 @@ const styles = StyleSheet.create({
   kind: { fontSize: 11, letterSpacing: 1.1, fontWeight: '900', color: colors.forest },
   confidence: { color: colors.muted, fontWeight: '700' },
   input: { fontSize: 17, lineHeight: 23, fontWeight: '700', color: colors.ink, marginTop: 12, padding: 0 },
-  evidence: { marginTop: 12, color: colors.muted, fontSize: 13, lineHeight: 18 },
+  metadata: { marginTop: 8, color: colors.muted, fontSize: 13, lineHeight: 18 },
   rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   smallButton: { backgroundColor: colors.forest, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10 },
   smallButtonText: { color: 'white', fontWeight: '800', fontSize: 12 },
