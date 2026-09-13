@@ -2,7 +2,7 @@ import { useEffect, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import { SourceProof } from '../../components/SourceProof';
-import type { Meeting, MeetingProposal, MeetingReview, Transcript } from '../../models/domain';
+import type { Decision, Meeting, MeetingProposal, MeetingReview, Transcript } from '../../models/domain';
 import type { ProviderBundle } from '../../services/providers';
 import { colors } from '../../theme';
 
@@ -10,11 +10,12 @@ type ReviewScreenProps = {
   meeting: Meeting;
   providers: ProviderBundle;
   initialReview?: MeetingReview | null;
+  priorDecisions?: Decision[];
   onProgress: (review: MeetingReview) => Promise<void>;
   onDone: (meeting: Meeting, review: MeetingReview) => Promise<void>;
 };
 
-export function ReviewScreen({ meeting, providers, initialReview, onProgress, onDone }: ReviewScreenProps) {
+export function ReviewScreen({ meeting, providers, initialReview, priorDecisions = [], onProgress, onDone }: ReviewScreenProps) {
   const [proposals, setProposals] = useState<MeetingProposal[]>(initialReview?.proposals ?? []);
   const [transcript, setTranscript] = useState<Transcript | null>(initialReview?.transcript ?? meeting.transcript ?? null);
   const [loading, setLoading] = useState(!initialReview);
@@ -86,6 +87,7 @@ export function ReviewScreen({ meeting, providers, initialReview, onProgress, on
   };
 
   const transcriptText = transcript?.segments.map((segment) => segment.text).join('\n') ?? 'Processing transcript…';
+  const activePriorDecisions = priorDecisions.filter((decision) => decision.status === 'active');
 
   return (
     <Screen>
@@ -121,7 +123,39 @@ export function ReviewScreen({ meeting, providers, initialReview, onProgress, on
           {proposal.dueAt ? <Text style={styles.metadata}>Due: {new Date(proposal.dueAt).toLocaleString()}</Text> : null}
           {proposal.rationale ? <Text style={styles.metadata}>Rationale: {proposal.rationale}</Text> : null}
           {proposal.reviewAt ? <Text style={styles.metadata}>Review: {new Date(proposal.reviewAt).toLocaleString()}</Text> : null}
+
+          {proposal.kind === 'decision' && activePriorDecisions.length > 0 ? (
+            <View style={styles.supersedeBlock}>
+              <Text style={styles.supersedeLabel}>DOES THIS REPLACE AN ACTIVE DECISION?</Text>
+              <Pressable
+                style={[styles.decisionOption, !proposal.supersedesDecisionId && styles.decisionOptionSelected]}
+                onPress={() => patch(proposal.id, { supersedesDecisionId: undefined })}
+              >
+                <Text style={[styles.decisionOptionText, !proposal.supersedesDecisionId && styles.decisionOptionTextSelected]}>No. Keep as a separate decision.</Text>
+              </Pressable>
+              {activePriorDecisions.map((decision) => {
+                const selected = proposal.supersedesDecisionId === decision.id;
+                return (
+                  <Pressable
+                    key={decision.id}
+                    style={[styles.decisionOption, selected && styles.decisionOptionSelected]}
+                    onPress={() => patch(proposal.id, { supersedesDecisionId: decision.id })}
+                  >
+                    <Text style={[styles.decisionOptionText, selected && styles.decisionOptionTextSelected]}>{decision.statement}</Text>
+                  </Pressable>
+                );
+              })}
+            </View>
+          ) : null}
+
           <SourceProof evidence={proposal.evidence} />
+          {proposal.kind === 'contradiction' && proposal.priorEvidence?.length ? (
+            <View style={styles.priorProof}>
+              <Text style={styles.supersedeLabel}>PRIOR EVIDENCE</Text>
+              <SourceProof evidence={proposal.priorEvidence} />
+            </View>
+          ) : null}
+
           <View style={styles.rowActions}>
             <Pressable style={styles.smallButton} onPress={() => patch(proposal.id, { state: 'accepted' })}>
               <Text style={styles.smallButtonText}>Accept</Text>
@@ -154,6 +188,13 @@ const styles = StyleSheet.create({
   confidence: { color: colors.muted, fontWeight: '700' },
   input: { fontSize: 17, lineHeight: 23, fontWeight: '700', color: colors.ink, marginTop: 12, padding: 0 },
   metadata: { marginTop: 8, color: colors.muted, fontSize: 13, lineHeight: 18 },
+  supersedeBlock: { marginTop: 15, paddingTop: 14, borderTopWidth: 1, borderTopColor: colors.line, gap: 7 },
+  supersedeLabel: { color: colors.muted, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
+  decisionOption: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 11, backgroundColor: colors.paper },
+  decisionOptionSelected: { backgroundColor: colors.forestSoft, borderColor: colors.forest },
+  decisionOptionText: { color: colors.ink, fontSize: 12, lineHeight: 17, fontWeight: '700' },
+  decisionOptionTextSelected: { color: colors.forest },
+  priorProof: { marginTop: 12 },
   rowActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 16 },
   smallButton: { backgroundColor: colors.forest, paddingVertical: 9, paddingHorizontal: 12, borderRadius: 10 },
   smallButtonText: { color: 'white', fontWeight: '800', fontSize: 12 },
