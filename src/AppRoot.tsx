@@ -7,6 +7,7 @@ import { contradictionFromProposal } from './features/contradictions/contradicti
 import { ContradictionReviewScreen } from './features/contradictions/ContradictionReviewScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
 import { DecisionLedgerScreen } from './features/decisions/DecisionLedgerScreen';
+import { supersedeDecision } from './features/decisions/decisionLineage';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
 import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
@@ -167,7 +168,7 @@ export function AppRoot() {
 
   const finishCapture = async (audioUri: string | undefined, durationMs: number) => {
     const now = new Date();
-    const base = currentMeeting?.status === 'draft'
+    const base: Meeting = currentMeeting?.status === 'draft'
       ? currentMeeting
       : {
           id: makeId('meeting'),
@@ -175,7 +176,7 @@ export function AppRoot() {
           title: `Meeting · ${now.toLocaleDateString()}`,
           startedAt: new Date(now.getTime() - durationMs).toISOString(),
           durationMs: 0,
-          status: 'draft' as const,
+          status: 'draft',
         };
     const meeting: Meeting = {
       ...base,
@@ -193,11 +194,7 @@ export function AppRoot() {
 
   const recoverDraft = async (draft: Meeting) => {
     if (!draft.audioUri) return;
-    const recovered: Meeting = {
-      ...draft,
-      endedAt: draft.endedAt ?? new Date().toISOString(),
-      status: 'review',
-    };
+    const recovered: Meeting = { ...draft, endedAt: draft.endedAt ?? new Date().toISOString(), status: 'review' };
     await repositories.meetings.upsert(recovered);
     setPendingDraftMeeting(null);
     setCurrentMeeting(recovered);
@@ -244,7 +241,7 @@ export function AppRoot() {
 
     for (const proposal of accepted) {
       if (proposal.kind === 'decision') {
-        const decision: Decision = {
+        const replacement: Decision = {
           id: proposal.id,
           threadId,
           statement: proposal.statement,
@@ -253,8 +250,17 @@ export function AppRoot() {
           status: 'active',
           evidence: proposal.evidence,
           createdAt: now,
+          supersedesDecisionId: proposal.supersedesDecisionId,
         };
-        await repositories.decisions.upsert(decision);
+        if (proposal.supersedesDecisionId) {
+          const priorDecision = await repositories.decisions.get(proposal.supersedesDecisionId);
+          if (!priorDecision) throw new Error('The decision selected for replacement could not be found. Review the meeting before saving again.');
+          const lineage = supersedeDecision(priorDecision, replacement);
+          await repositories.decisions.upsert(lineage.prior);
+          await repositories.decisions.upsert(lineage.replacement);
+        } else {
+          await repositories.decisions.upsert(replacement);
+        }
       }
       if (proposal.kind === 'commitment') {
         const commitment: Commitment = {
@@ -325,102 +331,37 @@ export function AppRoot() {
     setRoute('changes');
   };
 
-  const updateDecision = async (decision: Decision) => {
-    await repositories.decisions.upsert(decision);
-    await refresh();
-  };
-
-  const updateCommitment = async (commitment: Commitment) => {
-    await repositories.commitments.upsert(commitment);
-    await refresh();
-  };
-
-  const updateAssumption = async (assumption: Assumption) => {
-    await repositories.assumptions.upsert(assumption);
-    await refresh();
-  };
-
-  const updateContradiction = async (contradiction: Contradiction) => {
-    await repositories.contradictions.upsert(contradiction);
-    await refresh();
-  };
+  const updateDecision = async (decision: Decision) => { await repositories.decisions.upsert(decision); await refresh(); };
+  const updateCommitment = async (commitment: Commitment) => { await repositories.commitments.upsert(commitment); await refresh(); };
+  const updateAssumption = async (assumption: Assumption) => { await repositories.assumptions.upsert(assumption); await refresh(); };
+  const updateContradiction = async (contradiction: Contradiction) => { await repositories.contradictions.upsert(contradiction); await refresh(); };
 
   const createPrivateNote = async (body: string) => {
     if (!selectedThreadId) return;
     const now = new Date().toISOString();
-    const note: PrivateNote = {
-      id: makeId('private-note'),
-      threadId: selectedThreadId,
-      body,
-      createdAt: now,
-      updatedAt: now,
-    };
+    const note: PrivateNote = { id: makeId('private-note'), threadId: selectedThreadId, body, createdAt: now, updatedAt: now };
     await repositories.privateNotes.upsert(note);
     await refresh();
   };
-
-  const promoteNote = async (note: PrivateNote) => {
-    await repositories.privateNotes.upsert(promotePrivateNote(note));
-    await refresh();
-  };
-
-  const makeNotePrivate = async (note: PrivateNote) => {
-    await repositories.privateNotes.upsert(returnPrivateNoteToSidecar(note));
-    await refresh();
-  };
-
-  const deletePrivateNote = async (note: PrivateNote) => {
-    await repositories.privateNotes.remove(note.id);
-    await refresh();
-  };
+  const promoteNote = async (note: PrivateNote) => { await repositories.privateNotes.upsert(promotePrivateNote(note)); await refresh(); };
+  const makeNotePrivate = async (note: PrivateNote) => { await repositories.privateNotes.upsert(returnPrivateNoteToSidecar(note)); await refresh(); };
+  const deletePrivateNote = async (note: PrivateNote) => { await repositories.privateNotes.remove(note.id); await refresh(); };
 
   if (route === 'capture') {
-    return (
-      <CaptureScreen
-        onCancel={() => { setRoute('home'); void refresh(); }}
-        onStarted={startCaptureDraft}
-        onCheckpoint={checkpointCapture}
-        onFinished={finishCapture}
-      />
-    );
+    return <CaptureScreen onCancel={() => { setRoute('home'); void refresh(); }} onStarted={startCaptureDraft} onCheckpoint={checkpointCapture} onFinished={finishCapture} />;
   }
-
   if (route === 'review' && currentMeeting) {
-    return (
-      <ReviewScreen
-        meeting={currentMeeting}
-        providers={mockProviders}
-        initialReview={currentReview}
-        onProgress={saveReviewProgress}
-        onDone={saveReview}
-      />
-    );
+    return <ReviewScreen meeting={currentMeeting} providers={mockProviders} initialReview={currentReview} priorDecisions={threadDecisions} onProgress={saveReviewProgress} onDone={saveReview} />;
   }
-
   if (route === 'changes' && currentChangeSet) {
     const threadTitle = threads.find((thread) => thread.id === currentChangeSet.threadId)?.title ?? 'Meeting thread';
     return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
   }
-
-  if (route === 'decisions') {
-    return <DecisionLedgerScreen decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateDecision} onBack={() => setRoute('home')} />;
-  }
-
-  if (route === 'commitments') {
-    return <CommitmentRadarScreen commitments={threadCommitments} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
-  }
-
-  if (route === 'assumptions') {
-    return <AssumptionRegisterScreen assumptions={threadAssumptions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
-  }
-
-  if (route === 'contradictions') {
-    return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
-  }
-
-  if (route === 'private-notes') {
-    return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
-  }
+  if (route === 'decisions') return <DecisionLedgerScreen decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateDecision} onBack={() => setRoute('home')} />;
+  if (route === 'commitments') return <CommitmentRadarScreen commitments={threadCommitments} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
+  if (route === 'assumptions') return <AssumptionRegisterScreen assumptions={threadAssumptions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
+  if (route === 'contradictions') return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
+  if (route === 'private-notes') return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
 
   return (
     <Screen>
