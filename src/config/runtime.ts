@@ -13,6 +13,14 @@ type RuntimeEnv = {
   EXPO_PUBLIC_API_URL?: string;
 };
 
+function processRuntimeEnv(): RuntimeEnv {
+  return {
+    EXPO_PUBLIC_APP_ENV: process.env.EXPO_PUBLIC_APP_ENV,
+    EXPO_PUBLIC_PROCESSING_MODE: process.env.EXPO_PUBLIC_PROCESSING_MODE,
+    EXPO_PUBLIC_API_URL: process.env.EXPO_PUBLIC_API_URL,
+  };
+}
+
 function parseEnvironment(value: string | undefined): AppEnvironment {
   if (!value || value === 'development') return 'development';
   if (value === 'preview' || value === 'production') return value;
@@ -31,7 +39,7 @@ function normalizeApiUrl(value: string | undefined): string | undefined {
   return trimmed.replace(/\/$/, '');
 }
 
-export function loadRuntimeConfig(env: RuntimeEnv = process.env): RuntimeConfig {
+export function loadRuntimeConfig(env: RuntimeEnv = processRuntimeEnv()): RuntimeConfig {
   const environment = parseEnvironment(env.EXPO_PUBLIC_APP_ENV);
   const processingMode = parseProcessingMode(env.EXPO_PUBLIC_PROCESSING_MODE);
   const apiUrl = normalizeApiUrl(env.EXPO_PUBLIC_API_URL);
