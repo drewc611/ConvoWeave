@@ -28,18 +28,21 @@ export function ReviewScreen({ meeting, providers, initialReview, onProgress, on
       try {
         const result = await providers.transcription.transcribe(meeting);
         const extracted = await providers.extraction.extract(meeting, result);
+        const inspected = meeting.threadId
+          ? await providers.contradiction.inspect(meeting.threadId, extracted)
+          : extracted;
         if (!mounted) return;
 
         const review: MeetingReview = {
           id: meeting.id,
           meetingId: meeting.id,
           transcript: result,
-          proposals: extracted,
+          proposals: inspected,
           updatedAt: new Date().toISOString(),
         };
 
         setTranscript(result);
-        setProposals(extracted);
+        setProposals(inspected);
         await onProgress(review);
       } catch (cause) {
         if (!mounted) return;
@@ -98,7 +101,7 @@ export function ReviewScreen({ meeting, providers, initialReview, onProgress, on
       </View>
 
       <Text style={styles.section}>Proposed memory</Text>
-      {loading ? <Text style={styles.muted}>Extracting decisions, commitments, and assumptions…</Text> : null}
+      {loading ? <Text style={styles.muted}>Extracting decisions, commitments, assumptions, and possible conflicts…</Text> : null}
       {error ? <Text style={styles.error}>{error}</Text> : null}
 
       {proposals.map((proposal) => (
