@@ -1,8 +1,14 @@
-import { useState } from 'react';
+import { useMemo, useState } from 'react';
 import { Pressable, StyleSheet, Text, TextInput, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
+import { loadRuntimeConfig } from '../../config/runtime';
 import type { Decision, EvidenceRef, Meeting, MeetingProposal, MeetingReview, ProposalKind, Transcript } from '../../models/domain';
 import type { ProviderBundle } from '../../services/providers';
+import {
+  buildPreviewRemoteReview,
+  canUsePreviewRemoteProcessing,
+  describeRemoteProcessingError,
+} from '../../services/previewRemoteReview';
 import { colors } from '../../theme';
 
 type ReviewScreenProps = {
@@ -28,7 +34,7 @@ function parseOptionalDate(value: string): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
-function transcriptFor(meeting: Meeting, notes: string): Transcript {
+function transcriptFor(meeting: Meeting, text: string): Transcript {
   return {
     meetingId: meeting.id,
     segments: [{
@@ -37,7 +43,7 @@ function transcriptFor(meeting: Meeting, notes: string): Transcript {
       speakerId: 'manual-entry',
       startMs: 0,
       endMs: meeting.durationMs,
-      text: notes.trim() || 'Manual structured meeting memory.',
+      text: text.trim() || 'Manual structured meeting memory.',
     }],
   };
 }
@@ -53,17 +59,71 @@ function evidenceFor(meeting: Meeting, statement: string): EvidenceRef[] {
   }];
 }
 
+function isManualEvidence(evidence: EvidenceRef[]): boolean {
+  return evidence.length === 0 || evidence.every((item) => item.speakerId === 'manual-entry');
+}
+
+function hasRemoteEvidence(transcript: Transcript | undefined): transcript is Transcript {
+  return Boolean(transcript?.segments.some((segment) => segment.speakerId !== 'manual-entry'));
+}
+
+function notesFromTranscript(transcript: Transcript | undefined): string {
+  if (!transcript) return '';
+  const manual = [...transcript.segments].reverse().find((segment) => segment.speakerId === 'manual-entry');
+  if (manual) return manual.text;
+  return transcript.segments.map((segment) => segment.text).join('\n');
+}
+
+function manualText(notes: string, proposals: DraftProposal[]): string {
+  const parts = [notes.trim()];
+  for (const proposal of proposals) {
+    if (!isManualEvidence(proposal.evidence)) continue;
+    const statement = proposal.statement.trim();
+    if (statement && !parts.some((part) => part.includes(statement))) parts.push(statement);
+  }
+  return parts.filter(Boolean).join('\n');
+}
+
 export function ReviewScreen({ meeting, providers: _providers, initialReview, priorDecisions = [], onProgress, onDone }: ReviewScreenProps) {
-  const initialNotes = initialReview?.transcript.segments.map((segment) => segment.text).join('\n') ?? meeting.transcript?.segments.map((segment) => segment.text).join('\n') ?? '';
-  const [notes, setNotes] = useState(initialNotes);
+  const runtimeConfig = useMemo(() => {
+    try {
+      return loadRuntimeConfig();
+    } catch {
+      return null;
+    }
+  }, []);
+  const remotePreviewEnabled = runtimeConfig?.environment === 'preview' && runtimeConfig.processingMode === 'remote';
+  const persistedTranscript = initialReview?.transcript ?? meeting.transcript;
+  const [sourceTranscript, setSourceTranscript] = useState<Transcript | null>(hasRemoteEvidence(persistedTranscript) ? persistedTranscript : null);
+  const [notes, setNotes] = useState(notesFromTranscript(persistedTranscript));
   const [proposals, setProposals] = useState<DraftProposal[]>(initialReview?.proposals ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [previewAccessToken, setPreviewAccessToken] = useState('');
+  const [remoteBusy, setRemoteBusy] = useState(false);
+  const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
+
+  const transcriptForReview = (nextNotes: string, nextProposals: DraftProposal[]): Transcript => {
+    const nextManualText = manualText(nextNotes, nextProposals);
+    if (!sourceTranscript) return transcriptFor(meeting, nextManualText);
+
+    const sourceSegments = sourceTranscript.segments.filter((segment) => segment.speakerId !== 'manual-entry');
+    const sourceText = sourceSegments.map((segment) => segment.text).join('\n').trim();
+    const hasManualProposal = nextProposals.some((proposal) => isManualEvidence(proposal.evidence));
+    const needsManualSegment = hasManualProposal || nextNotes.trim() !== sourceText;
+    const manualSegment = transcriptFor(meeting, nextManualText).segments[0];
+    return {
+      meetingId: meeting.id,
+      segments: needsManualSegment && manualSegment
+        ? [...sourceSegments, manualSegment]
+        : sourceSegments,
+    };
+  };
 
   const buildReview = (nextNotes = notes, nextProposals = proposals): MeetingReview => ({
     id: meeting.id,
     meetingId: meeting.id,
-    transcript: transcriptFor(meeting, nextNotes),
+    transcript: transcriptForReview(nextNotes, nextProposals),
     proposals: nextProposals.map(({ dueInput: _dueInput, reviewInput: _reviewInput, ...proposal }) => proposal),
     updatedAt: new Date().toISOString(),
   });
@@ -94,7 +154,10 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
     const next = proposals.map((proposal) => {
       if (proposal.id !== id) return proposal;
       const updated = { ...proposal, ...update };
-      return { ...updated, evidence: evidenceFor(meeting, updated.statement) };
+      return {
+        ...updated,
+        evidence: isManualEvidence(proposal.evidence) ? evidenceFor(meeting, updated.statement) : proposal.evidence,
+      };
     });
     setProposals(next);
     persist(notes, next);
@@ -104,6 +167,28 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
     const next = proposals.filter((proposal) => proposal.id !== id);
     setProposals(next);
     persist(notes, next);
+  };
+
+  const processRemotely = async () => {
+    if (!runtimeConfig) return;
+    setRemoteBusy(true);
+    setError(null);
+    setRemoteStatus('Uploading the approved recording and waiting for the preview backend…');
+    try {
+      const review = await buildPreviewRemoteReview(runtimeConfig, meeting, previewAccessToken);
+      const nextNotes = review.transcript.segments.map((segment) => segment.text).join('\n');
+      const nextProposals: DraftProposal[] = review.proposals.map((proposal) => ({ ...proposal }));
+      setSourceTranscript(review.transcript);
+      setNotes(nextNotes);
+      setProposals(nextProposals);
+      await onProgress(review);
+      setRemoteStatus('Remote draft loaded. Review the transcript and explicitly accept, reject, or edit each proposed memory item.');
+    } catch (cause) {
+      setError(`${describeRemoteProcessingError(cause)} Manual review is still available below.`);
+      setRemoteStatus(null);
+    } finally {
+      setRemoteBusy(false);
+    }
   };
 
   const finish = async () => {
@@ -119,7 +204,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
       const normalized: DraftProposal[] = meaningful.map((proposal) => ({
         ...proposal,
         statement: proposal.statement.trim(),
-        evidence: evidenceFor(meeting, proposal.statement),
+        evidence: isManualEvidence(proposal.evidence) ? evidenceFor(meeting, proposal.statement) : proposal.evidence,
         dueAt: proposal.kind === 'commitment' ? parseOptionalDate(proposal.dueInput ?? '') ?? proposal.dueAt : proposal.dueAt,
         reviewAt: proposal.kind === 'assumption' ? parseOptionalDate(proposal.reviewInput ?? '') ?? proposal.reviewAt : proposal.reviewAt,
       }));
@@ -131,14 +216,43 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
   };
 
   const activePriorDecisions = priorDecisions.filter((decision) => decision.status === 'active');
+  const canProcessRemotely = runtimeConfig ? canUsePreviewRemoteProcessing(runtimeConfig, meeting, previewAccessToken) : false;
 
   return (
     <Screen>
       <Header
         eyebrow={initialReview ? 'RESUMED REVIEW' : 'REAL MEETING MEMORY'}
         title="Save what actually happened."
-        body="Enter or paste the real notes, then capture the decisions, commitments, and assumptions you want ConvoWeave to remember. No generated content is inserted into this review."
+        body={remotePreviewEnabled
+          ? 'Manual review remains available. Preview remote processing runs only after you explicitly approve this meeting upload, and every generated item still requires human review.'
+          : 'Enter or paste the real notes, then capture the decisions, commitments, and assumptions you want ConvoWeave to remember.'}
       />
+
+      {remotePreviewEnabled ? (
+        <View style={[screenStyles.card, styles.remoteCard]}>
+          <Text style={styles.label}>PREVIEW REMOTE PROCESSING</Text>
+          <Text style={styles.remoteBody}>Nothing leaves this device until you press the approval button below. The access token is held in memory only and is not saved with the meeting.</Text>
+          <TextInput
+            value={previewAccessToken}
+            onChangeText={setPreviewAccessToken}
+            placeholder="Preview access token"
+            placeholderTextColor={colors.muted}
+            secureTextEntry
+            autoCapitalize="none"
+            autoCorrect={false}
+            style={styles.metaInput}
+          />
+          {!meeting.audioUri ? <Text style={styles.error}>No local recording is available for remote processing.</Text> : null}
+          <Pressable
+            disabled={!canProcessRemotely || remoteBusy}
+            style={[screenStyles.button, (!canProcessRemotely || remoteBusy) && styles.disabledButton]}
+            onPress={processRemotely}
+          >
+            <Text style={screenStyles.buttonText}>{remoteBusy ? 'Processing…' : 'Approve audio upload & process'}</Text>
+          </Pressable>
+          {remoteStatus ? <Text style={styles.remoteStatus}>{remoteStatus}</Text> : null}
+        </View>
+      ) : null}
 
       <View style={screenStyles.card}>
         <Text style={styles.label}>MEETING NOTES</Text>
@@ -154,7 +268,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
       </View>
 
       <Text style={styles.section}>Structured memory</Text>
-      <Text style={styles.help}>Items you add here are user-confirmed and save directly into this meeting thread.</Text>
+      <Text style={styles.help}>Manual items are immediately accepted. Remote items arrive as proposed and must be explicitly accepted before they become durable thread memory.</Text>
 
       <View style={styles.addRow}>
         <AddButton label="+ Decision" onPress={() => addProposal('decision')} />
@@ -165,9 +279,18 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
       {proposals.map((proposal) => (
         <View key={proposal.id} style={screenStyles.card}>
           <View style={styles.row}>
-            <Text style={styles.kind}>{proposal.kind.toUpperCase()}</Text>
+            <Text style={styles.kind}>{proposal.kind.toUpperCase()} · {proposal.state.toUpperCase()}</Text>
             <Pressable onPress={() => remove(proposal.id)}><Text style={styles.remove}>Remove</Text></Pressable>
           </View>
+
+          {proposal.state !== 'accepted' ? (
+            <View style={styles.stateRow}>
+              <Pressable style={styles.acceptButton} onPress={() => patch(proposal.id, { state: 'accepted' })}><Text style={styles.acceptText}>Accept</Text></Pressable>
+              <Pressable style={styles.rejectButton} onPress={() => patch(proposal.id, { state: 'rejected' })}><Text style={styles.rejectText}>Reject</Text></Pressable>
+            </View>
+          ) : (
+            <Pressable style={styles.proposedButton} onPress={() => patch(proposal.id, { state: 'proposed' })}><Text style={styles.proposedText}>Return to proposed</Text></Pressable>
+          )}
 
           <TextInput
             multiline
@@ -240,5 +363,16 @@ const styles = StyleSheet.create({
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, padding: 10, marginTop: 7 },
   optionSelected: { backgroundColor: colors.forestSoft, borderColor: colors.forest },
   optionText: { color: colors.ink, fontSize: 12, lineHeight: 17, fontWeight: '700' },
-  error: { color: colors.red, lineHeight: 20, marginBottom: 12 },
+  error: { color: colors.red, lineHeight: 20, marginBottom: 12, marginTop: 8 },
+  remoteCard: { borderColor: colors.forest, borderWidth: 1 },
+  remoteBody: { color: colors.muted, lineHeight: 20 },
+  remoteStatus: { color: colors.forest, lineHeight: 20, marginTop: 10, fontWeight: '700' },
+  disabledButton: { opacity: 0.45 },
+  stateRow: { flexDirection: 'row', gap: 8, marginTop: 12 },
+  acceptButton: { backgroundColor: colors.forestSoft, borderRadius: 9, paddingVertical: 7, paddingHorizontal: 11 },
+  acceptText: { color: colors.forest, fontWeight: '800' },
+  rejectButton: { backgroundColor: '#FCE8E6', borderRadius: 9, paddingVertical: 7, paddingHorizontal: 11 },
+  rejectText: { color: colors.red, fontWeight: '800' },
+  proposedButton: { alignSelf: 'flex-start', marginTop: 10 },
+  proposedText: { color: colors.muted, fontWeight: '700', fontSize: 12 },
 });
