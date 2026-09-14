@@ -1,6 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StatusBar, StyleSheet, Text, TextInput, View } from 'react-native';
-import { Header, Screen, screenStyles } from './components/Screen';
 import { AssumptionRegisterScreen } from './features/assumptions/AssumptionRegisterScreen';
 import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScreen';
 import { contradictionFromProposal } from './features/contradictions/contradictionProposal';
@@ -13,6 +11,8 @@ import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
 import { PrivateSidecarScreen } from './features/private-notes/PrivateSidecarScreen';
 import { promotePrivateNote, returnPrivateNoteToSidecar } from './features/private-notes/privateContext';
+import { MeetingWorkspaceScreen } from './features/suite/MeetingWorkspaceScreen';
+import { SuiteHomeScreen } from './features/suite/SuiteHomeScreen';
 import type {
   Assumption,
   Commitment,
@@ -36,9 +36,8 @@ import {
   PrivateNoteRepository,
   ThreadRepository,
 } from './storage/repositories';
-import { colors } from './theme';
 
-type Route = 'home' | 'capture' | 'review' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'contradictions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'contradictions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -57,6 +56,7 @@ export function AppRoot() {
 
   const [route, setRoute] = useState<Route>('home');
   const [currentMeeting, setCurrentMeeting] = useState<Meeting | null>(null);
+  const [workspaceMeeting, setWorkspaceMeeting] = useState<Meeting | null>(null);
   const [currentReview, setCurrentReview] = useState<MeetingReview | null>(null);
   const [currentChangeSet, setCurrentChangeSet] = useState<MeetingChangeSet | null>(null);
   const [meetings, setMeetings] = useState<Meeting[]>([]);
@@ -119,13 +119,6 @@ export function AppRoot() {
   const threadAssumptions = assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadContradictions = contradictions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
-  const recentMeetings = meetings.filter((meeting) => !selectedThreadId || meeting.threadId === selectedThreadId).slice(0, 5);
-  const counts = {
-    decisions: threadDecisions.filter((item) => item.status === 'active').length,
-    commitments: threadCommitments.filter((item) => item.status === 'open').length,
-    assumptions: threadAssumptions.filter((item) => item.status === 'untested').length,
-  };
-  const changeSetByMeeting = new Map(changeSets.map((item) => [item.meetingId, item]));
 
   const createThread = async () => {
     const title = newThreadTitle.trim();
@@ -324,11 +317,17 @@ export function AppRoot() {
   };
 
   const openChanges = async (meetingId: string) => {
-    const existing = changeSetByMeeting.get(meetingId) ?? await repositories.changes.get(meetingId);
+    const existing = changeSets.find((item) => item.meetingId === meetingId) ?? await repositories.changes.get(meetingId);
     if (!existing) return;
     setCurrentChangeSet(existing);
     setSelectedThreadId(existing.threadId);
     setRoute('changes');
+  };
+
+  const openMeetingWorkspace = (meeting: Meeting) => {
+    setWorkspaceMeeting(meeting);
+    if (meeting.threadId) setSelectedThreadId(meeting.threadId);
+    setRoute('workspace');
   };
 
   const updateDecision = async (decision: Decision) => { await repositories.decisions.upsert(decision); await refresh(); };
@@ -353,6 +352,28 @@ export function AppRoot() {
   if (route === 'review' && currentMeeting) {
     return <ReviewScreen meeting={currentMeeting} providers={mockProviders} initialReview={currentReview} priorDecisions={threadDecisions} onProgress={saveReviewProgress} onDone={saveReview} />;
   }
+  if (route === 'workspace' && workspaceMeeting) {
+    const workspaceThreadId = workspaceMeeting.threadId ?? selectedThreadId;
+    const workspaceThreadTitle = threads.find((thread) => thread.id === workspaceThreadId)?.title ?? 'Meeting thread';
+    const workspaceChangeSet = changeSets.find((item) => item.meetingId === workspaceMeeting.id);
+    return (
+      <MeetingWorkspaceScreen
+        meeting={workspaceMeeting}
+        threadTitle={workspaceThreadTitle}
+        decisions={decisions.filter((item) => !workspaceThreadId || item.threadId === workspaceThreadId)}
+        commitments={commitments.filter((item) => !workspaceThreadId || item.threadId === workspaceThreadId)}
+        assumptions={assumptions.filter((item) => !workspaceThreadId || item.threadId === workspaceThreadId)}
+        contradictions={contradictions.filter((item) => !workspaceThreadId || item.threadId === workspaceThreadId)}
+        changeSet={workspaceChangeSet}
+        onBack={() => setRoute('home')}
+        onOpenChanges={() => { void openChanges(workspaceMeeting.id); }}
+        onOpenDecisions={() => setRoute('decisions')}
+        onOpenCommitments={() => setRoute('commitments')}
+        onOpenAssumptions={() => setRoute('assumptions')}
+        onOpenContradictions={() => setRoute('contradictions')}
+      />
+    );
+  }
   if (route === 'changes' && currentChangeSet) {
     const threadTitle = threads.find((thread) => thread.id === currentChangeSet.threadId)?.title ?? 'Meeting thread';
     return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
@@ -364,143 +385,33 @@ export function AppRoot() {
   if (route === 'private-notes') return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
 
   return (
-    <Screen>
-      <StatusBar barStyle="dark-content" />
-      <Header eyebrow="CONVOWEAVE" title="Your meetings should remember each other." body="Capture into a thread, confirm the important memory, and see exactly what changed from one meeting to the next." />
-
-      {pendingDraftMeeting ? (
-        <View style={styles.draftCard}>
-          <Text style={styles.draftLabel}>UNFINISHED CAPTURE</Text>
-          <Text style={styles.draftTitle}>{pendingDraftMeeting.title}</Text>
-          <Text style={styles.draftBody}>Checkpointed at {Math.round(pendingDraftMeeting.durationMs / 1000)} seconds. {pendingDraftMeeting.audioUri ? 'A local recording reference is available.' : 'No recoverable recording reference is available yet.'}</Text>
-          <View style={styles.draftActions}>
-            {pendingDraftMeeting.audioUri ? <Pressable style={styles.recoverButton} onPress={() => recoverDraft(pendingDraftMeeting)}><Text style={styles.recoverText}>Review recovered draft</Text></Pressable> : null}
-            <Pressable style={styles.discardButton} onPress={() => discardDraft(pendingDraftMeeting)}><Text style={styles.discardText}>Discard draft</Text></Pressable>
-          </View>
-        </View>
-      ) : null}
-
-      {pendingReviewMeeting ? (
-        <Pressable style={styles.resume} onPress={resumeReview}>
-          <Text style={styles.resumeLabel}>UNFINISHED REVIEW</Text>
-          <Text style={styles.resumeTitle}>Resume {pendingReviewMeeting.title}</Text>
-          <Text style={styles.resumeBody}>Your transcript and proposal decisions are saved locally.</Text>
-        </Pressable>
-      ) : null}
-
-      <Text style={styles.section}>Meeting thread</Text>
-      <View style={styles.threadWrap}>
-        {threads.map((thread) => (
-          <Pressable key={thread.id} onPress={() => setSelectedThreadId(thread.id)} style={[styles.threadChip, selectedThreadId === thread.id && styles.threadChipSelected]}>
-            <Text style={[styles.threadChipText, selectedThreadId === thread.id && styles.threadChipTextSelected]}>{thread.title}</Text>
-          </Pressable>
-        ))}
-      </View>
-
-      <View style={styles.newThreadRow}>
-        <TextInput value={newThreadTitle} onChangeText={setNewThreadTitle} placeholder="New thread name" placeholderTextColor={colors.muted} style={styles.newThreadInput} />
-        <Pressable style={styles.addThreadButton} onPress={createThread}><Text style={styles.addThreadText}>Add</Text></Pressable>
-      </View>
-
-      <Pressable disabled={!selectedThreadId || Boolean(pendingDraftMeeting)} style={[styles.capture, (!selectedThreadId || Boolean(pendingDraftMeeting)) && styles.disabled]} onPress={() => { setCurrentMeeting(null); setRoute('capture'); }}>
-        <View style={styles.captureDot} />
-        <View style={{ flex: 1 }}>
-          <Text style={styles.captureTitle}>Start a meeting</Text>
-          <Text style={styles.captureBody}>{pendingDraftMeeting ? 'Resolve the unfinished capture first.' : `Recording into ${selectedThread?.title ?? 'your selected thread'}.`}</Text>
-        </View>
-      </Pressable>
-
-      <View style={styles.metrics}>
-        <Metric value={counts.decisions} label="active decisions" />
-        <Metric value={counts.commitments} label="open commitments" />
-        <Metric value={counts.assumptions} label="assumptions" />
-      </View>
-
-      <FeatureLink title="Decision Ledger" body="Review active, disputed, reversed, and superseded decisions with source proof." onPress={() => setRoute('decisions')} />
-      <FeatureLink title="Commitment Radar" body="See promises that are open, due soon, overdue, completed, or cancelled." onPress={() => setRoute('commitments')} />
-      <FeatureLink title="Assumption Register" body="Keep unverified beliefs visible until they are supported, disproven, or expired." onPress={() => setRoute('assumptions')} />
-      <FeatureLink title="Contradiction Review" body={`${threadContradictions.filter((item) => item.status === 'proposed').length} evidence-backed conflicts waiting for review.`} onPress={() => setRoute('contradictions')} />
-      <FeatureLink title="Private Sidecar" body={`${threadPrivateNotes.filter((note) => !note.promotedAt).length} private notes excluded from shared context.`} onPress={() => setRoute('private-notes')} />
-
-      <Text style={styles.section}>Recent meetings</Text>
-      {recentMeetings.length === 0 ? (
-        <View style={screenStyles.card}><Text style={styles.empty}>No meetings in this thread yet. The first recording will create a durable local draft.</Text></View>
-      ) : recentMeetings.map((meeting) => {
-        const hasChanges = changeSetByMeeting.has(meeting.id);
-        return (
-          <View key={meeting.id} style={screenStyles.card}>
-            <Text style={styles.meetingTitle}>{meeting.title}</Text>
-            <Text style={styles.meetingMeta}>{meeting.status.toUpperCase()} · {Math.round(meeting.durationMs / 1000)} sec</Text>
-            <Text style={styles.meetingMeta}>{new Date(meeting.startedAt).toLocaleString()}</Text>
-            {hasChanges ? <Pressable style={styles.changeLink} onPress={() => openChanges(meeting.id)}><Text style={styles.changeLinkText}>View what changed</Text></Pressable> : null}
-          </View>
-        );
-      })}
-
-      <View style={styles.privateNote}>
-        <Text style={styles.privateTitle}>Private by design</Text>
-        <Text style={styles.privateBody}>Raw audio, saved reviews, and unpromoted Sidecar notes stay outside shared AI context. Provider uploads remain disabled in the current alpha.</Text>
-      </View>
-    </Screen>
+    <SuiteHomeScreen
+      threads={threads}
+      selectedThreadId={selectedThreadId}
+      newThreadTitle={newThreadTitle}
+      meetings={meetings}
+      decisions={decisions}
+      commitments={commitments}
+      assumptions={assumptions}
+      contradictions={contradictions}
+      privateNotes={privateNotes}
+      changeSets={changeSets}
+      pendingDraftMeeting={pendingDraftMeeting}
+      pendingReviewMeeting={pendingReviewMeeting}
+      onSelectThread={setSelectedThreadId}
+      onChangeNewThreadTitle={setNewThreadTitle}
+      onCreateThread={() => { void createThread(); }}
+      onStartCapture={() => { setCurrentMeeting(null); setRoute('capture'); }}
+      onRecoverDraft={(meeting) => { void recoverDraft(meeting); }}
+      onDiscardDraft={(meeting) => { void discardDraft(meeting); }}
+      onResumeReview={() => { void resumeReview(); }}
+      onOpenMeeting={openMeetingWorkspace}
+      onOpenChanges={(meetingId) => { void openChanges(meetingId); }}
+      onOpenDecisions={() => setRoute('decisions')}
+      onOpenCommitments={() => setRoute('commitments')}
+      onOpenAssumptions={() => setRoute('assumptions')}
+      onOpenContradictions={() => setRoute('contradictions')}
+      onOpenPrivateNotes={() => setRoute('private-notes')}
+    />
   );
 }
-
-function Metric({ value, label }: { value: number; label: string }) {
-  return <View style={styles.metric}><Text style={styles.metricValue}>{value}</Text><Text style={styles.metricLabel}>{label}</Text></View>;
-}
-
-function FeatureLink({ title, body, onPress }: { title: string; body: string; onPress: () => void }) {
-  return (
-    <Pressable style={styles.featureLink} onPress={onPress}>
-      <View style={{ flex: 1 }}><Text style={styles.featureTitle}>{title}</Text><Text style={styles.featureBody}>{body}</Text></View>
-      <Text style={styles.featureArrow}>›</Text>
-    </Pressable>
-  );
-}
-
-const styles = StyleSheet.create({
-  draftCard: { backgroundColor: colors.redSoft, borderRadius: 18, padding: 17, marginBottom: 14, borderWidth: 1, borderColor: '#E7BBB7' },
-  draftLabel: { color: colors.red, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
-  draftTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 6 },
-  draftBody: { color: colors.ink, lineHeight: 20, marginTop: 5 },
-  draftActions: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginTop: 13 },
-  recoverButton: { backgroundColor: colors.forest, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12 },
-  recoverText: { color: 'white', fontWeight: '800' },
-  discardButton: { backgroundColor: colors.paper, borderRadius: 10, paddingVertical: 9, paddingHorizontal: 12 },
-  discardText: { color: colors.red, fontWeight: '800' },
-  resume: { backgroundColor: colors.amberSoft, borderRadius: 18, padding: 17, marginBottom: 22, borderWidth: 1, borderColor: '#E7C49F' },
-  resumeLabel: { color: colors.amber, fontSize: 11, fontWeight: '900', letterSpacing: 1.1 },
-  resumeTitle: { color: colors.ink, fontSize: 18, fontWeight: '800', marginTop: 6 },
-  resumeBody: { color: colors.muted, lineHeight: 20, marginTop: 5 },
-  section: { color: colors.ink, fontSize: 22, fontWeight: '800', marginBottom: 12 },
-  threadWrap: { flexDirection: 'row', flexWrap: 'wrap', gap: 8, marginBottom: 12 },
-  threadChip: { borderRadius: 999, borderWidth: 1, borderColor: colors.line, backgroundColor: colors.paper, paddingVertical: 9, paddingHorizontal: 13 },
-  threadChipSelected: { backgroundColor: colors.forest, borderColor: colors.forest },
-  threadChipText: { color: colors.ink, fontWeight: '700' },
-  threadChipTextSelected: { color: 'white' },
-  newThreadRow: { flexDirection: 'row', gap: 8, marginBottom: 20 },
-  newThreadInput: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 12, paddingHorizontal: 13, paddingVertical: 10, color: colors.ink },
-  addThreadButton: { backgroundColor: colors.forestSoft, borderRadius: 12, justifyContent: 'center', paddingHorizontal: 16 },
-  addThreadText: { color: colors.forest, fontWeight: '900' },
-  capture: { backgroundColor: colors.forest, borderRadius: 22, padding: 20, flexDirection: 'row', alignItems: 'center', gap: 14, marginBottom: 18 },
-  disabled: { opacity: 0.5 },
-  captureDot: { width: 14, height: 14, borderRadius: 7, backgroundColor: '#FFFFFF' },
-  captureTitle: { color: 'white', fontSize: 20, fontWeight: '800' },
-  captureBody: { color: '#E5F0E9', marginTop: 5, lineHeight: 20 },
-  metrics: { flexDirection: 'row', gap: 8, marginBottom: 12 },
-  metric: { flex: 1, backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 15, padding: 12 },
-  metricValue: { color: colors.ink, fontSize: 24, fontWeight: '800' },
-  metricLabel: { color: colors.muted, fontSize: 12, marginTop: 4 },
-  featureLink: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 15, flexDirection: 'row', alignItems: 'center', marginBottom: 10 },
-  featureTitle: { color: colors.ink, fontWeight: '900', fontSize: 16 },
-  featureBody: { color: colors.muted, lineHeight: 19, marginTop: 4 },
-  featureArrow: { color: colors.forest, fontSize: 28, marginLeft: 10 },
-  empty: { color: colors.muted, lineHeight: 21 },
-  meetingTitle: { color: colors.ink, fontSize: 17, fontWeight: '800', marginBottom: 7 },
-  meetingMeta: { color: colors.muted, lineHeight: 19 },
-  changeLink: { alignSelf: 'flex-start', backgroundColor: colors.forestSoft, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11, marginTop: 12 },
-  changeLinkText: { color: colors.forest, fontWeight: '800', fontSize: 12 },
-  privateNote: { backgroundColor: colors.forestSoft, borderRadius: 18, padding: 18, marginTop: 18 },
-  privateTitle: { color: colors.forest, fontWeight: '900', marginBottom: 6 },
-  privateBody: { color: colors.ink, lineHeight: 21 },
-});
