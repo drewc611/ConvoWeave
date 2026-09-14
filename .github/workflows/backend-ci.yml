@@ -7,6 +7,7 @@ on:
       - '.github/workflows/backend-ci.yml'
       - '.dockerignore'
       - 'docs/BACKEND_API.md'
+      - 'docs/adr/**'
   push:
     branches: [main]
     paths:
@@ -14,6 +15,7 @@ on:
       - '.github/workflows/backend-ci.yml'
       - '.dockerignore'
       - 'docs/BACKEND_API.md'
+      - 'docs/adr/**'
 
 permissions:
   contents: read
@@ -37,8 +39,10 @@ jobs:
         run: |
           node --check backend/config.mjs
           node --check backend/server.mjs
+          node --check backend/openai-live-smoke.mjs
           node --check backend/providers/index.mjs
           node --check backend/providers/deterministic.mjs
+          node --check backend/providers/openai.mjs
 
       - name: Backend contract tests
         run: npm --prefix backend test
