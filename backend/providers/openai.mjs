@@ -1,3 +1,7 @@
+import { randomUUID } from 'node:crypto';
+
+const ALLOWED_KINDS = new Set(['decision', 'commitment', 'assumption', 'question']);
+
 const MEMORY_SCHEMA = {
   type: 'object',
   additionalProperties: false,
@@ -50,9 +54,35 @@ function extractResponseText(payload) {
   throw new Error('OpenAI extraction response did not contain output text.');
 }
 
+function validOptionalString(value) {
+  return value === null || typeof value === 'string';
+}
+
+function validateOptionalDate(value, field) {
+  if (value === null) return;
+  if (typeof value !== 'string' || Number.isNaN(new Date(value).getTime())) {
+    throw new Error(`OpenAI extraction returned an invalid ${field}.`);
+  }
+}
+
+function validateExtractionItem(item, transcriptText) {
+  if (!item || typeof item !== 'object') throw new Error('OpenAI extraction returned an invalid proposal.');
+  if (!ALLOWED_KINDS.has(item.kind)) throw new Error('OpenAI extraction returned an unsupported proposal kind.');
+  if (typeof item.statement !== 'string' || !item.statement.trim()) throw new Error('OpenAI extraction returned an empty proposal statement.');
+  if (typeof item.confidence !== 'number' || item.confidence < 0 || item.confidence > 1) throw new Error('OpenAI extraction returned an invalid confidence.');
+  if (typeof item.evidenceQuote !== 'string' || !item.evidenceQuote.trim()) throw new Error('OpenAI extraction returned an empty evidence quote.');
+  if (!transcriptText.includes(item.evidenceQuote.trim())) throw new Error('OpenAI extraction returned evidence that is not present in the transcript.');
+  for (const field of ['rationale', 'ownerId']) {
+    if (!validOptionalString(item[field])) throw new Error(`OpenAI extraction returned an invalid ${field}.`);
+  }
+  validateOptionalDate(item.dueAt, 'dueAt');
+  validateOptionalDate(item.reviewAt, 'reviewAt');
+  return item;
+}
+
 function proposalFromExtraction(item, session, segmentId) {
   const proposal = {
-    id: `${session.meetingId}:${item.kind}:${crypto.randomUUID()}`,
+    id: `${session.meetingId}:${item.kind}:${randomUUID()}`,
     kind: item.kind,
     statement: item.statement.trim(),
     confidence: item.confidence,
@@ -66,10 +96,10 @@ function proposalFromExtraction(item, session, segmentId) {
     }],
     state: 'proposed',
   };
-  if (item.rationale) proposal.rationale = item.rationale;
-  if (item.ownerId) proposal.ownerId = item.ownerId;
-  if (item.dueAt) proposal.dueAt = item.dueAt;
-  if (item.reviewAt) proposal.reviewAt = item.reviewAt;
+  if (item.rationale) proposal.rationale = item.rationale.trim();
+  if (item.ownerId) proposal.ownerId = item.ownerId.trim();
+  if (item.dueAt) proposal.dueAt = new Date(item.dueAt).toISOString();
+  if (item.reviewAt) proposal.reviewAt = new Date(item.reviewAt).toISOString();
   return proposal;
 }
 
@@ -139,7 +169,7 @@ export function createOpenAIProcessor(config, { fetchImpl = globalThis.fetch } =
       throw new Error('OpenAI extraction response was not valid structured JSON.');
     }
     if (!Array.isArray(parsed.proposals)) throw new Error('OpenAI extraction response is missing proposals.');
-    return parsed.proposals;
+    return parsed.proposals.map((item) => validateExtractionItem(item, transcriptText));
   }
 
   return {
