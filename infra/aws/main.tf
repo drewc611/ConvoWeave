@@ -1,10 +1,10 @@
 locals {
-  service_name              = "${var.app_name}-${var.environment}"
+  service_name               = "${var.app_name}-${var.environment}"
   resource_server_identifier = "convoweave"
-  read_scope                = "${local.resource_server_identifier}/read"
-  write_scope               = "${local.resource_server_identifier}/write"
-  cognito_issuer            = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.this.id}"
-  cognito_jwks_url          = "${local.cognito_issuer}/.well-known/jwks.json"
+  read_scope                 = "${local.resource_server_identifier}/read"
+  write_scope                = "${local.resource_server_identifier}/write"
+  cognito_issuer             = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.this.id}"
+  cognito_jwks_url           = "${local.cognito_issuer}/.well-known/jwks.json"
 }
 
 resource "aws_dynamodb_table" "account_threads" {
@@ -86,8 +86,8 @@ data "aws_iam_policy_document" "snapshot_bucket" {
 }
 
 resource "aws_s3_bucket_policy" "account_snapshots" {
-  bucket = aws_s3_bucket.account_snapshots.id
-  policy = data.aws_iam_policy_document.snapshot_bucket.json
+  bucket     = aws_s3_bucket.account_snapshots.id
+  policy     = data.aws_iam_policy_document.snapshot_bucket.json
   depends_on = [aws_s3_bucket_public_access_block.account_snapshots]
 }
 
@@ -148,8 +148,8 @@ resource "aws_cognito_user_pool" "this" {
 }
 
 resource "aws_cognito_resource_server" "convoweave" {
-  identifier = local.resource_server_identifier
-  name       = "ConvoWeave API"
+  identifier   = local.resource_server_identifier
+  name         = "ConvoWeave API"
   user_pool_id = aws_cognito_user_pool.this.id
 
   scope {
@@ -288,22 +288,22 @@ resource "aws_apprunner_service" "mcp" {
       image_configuration {
         port = "8790"
         runtime_environment_variables = {
-          NODE_ENV                         = "production"
-          HOST                             = "0.0.0.0"
-          PORT                             = "8790"
-          CONVOWEAVE_MCP_AUTH_MODE         = "oidc"
-          CONVOWEAVE_MCP_PUBLIC_BASE_URL   = var.public_base_url
-          CONVOWEAVE_ACCOUNT_STORE_MODE    = "aws"
-          CONVOWEAVE_ACCOUNT_TABLE         = aws_dynamodb_table.account_threads.name
-          CONVOWEAVE_ACCOUNT_BUCKET        = aws_s3_bucket.account_snapshots.id
-          CONVOWEAVE_READ_SCOPE            = local.read_scope
-          CONVOWEAVE_WRITE_SCOPE           = local.write_scope
-          OIDC_ISSUER                      = local.cognito_issuer
-          OIDC_AUDIENCE                    = aws_cognito_user_pool_client.public.id
-          OIDC_AUDIENCE_CLAIM              = "client_id"
-          OIDC_JWKS_URL                    = local.cognito_jwks_url
-          OIDC_ALLOWED_ALGORITHMS           = "RS256"
-          AWS_REGION                       = var.aws_region
+          NODE_ENV                       = "production"
+          HOST                           = "0.0.0.0"
+          PORT                           = "8790"
+          CONVOWEAVE_MCP_AUTH_MODE       = "oidc"
+          CONVOWEAVE_MCP_PUBLIC_BASE_URL = var.public_base_url
+          CONVOWEAVE_ACCOUNT_STORE_MODE  = "aws"
+          CONVOWEAVE_ACCOUNT_TABLE       = aws_dynamodb_table.account_threads.name
+          CONVOWEAVE_ACCOUNT_BUCKET      = aws_s3_bucket.account_snapshots.id
+          CONVOWEAVE_READ_SCOPE          = local.read_scope
+          CONVOWEAVE_WRITE_SCOPE         = local.write_scope
+          OIDC_ISSUER                    = local.cognito_issuer
+          OIDC_AUDIENCE                  = aws_cognito_user_pool_client.public.id
+          OIDC_AUDIENCE_CLAIM            = "client_id"
+          OIDC_JWKS_URL                  = local.cognito_jwks_url
+          OIDC_ALLOWED_ALGORITHMS        = "RS256"
+          AWS_REGION                     = var.aws_region
         }
       }
     }
