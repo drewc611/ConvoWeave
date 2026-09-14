@@ -1,0 +1,59 @@
+name: Publish MCP Registry
+
+on:
+  workflow_dispatch:
+    inputs:
+      remote_url:
+        description: 'Public production MCP URL, including /mcp'
+        required: true
+        type: string
+      version:
+        description: 'Registry metadata version'
+        required: true
+        default: '1.0.0'
+        type: string
+
+permissions:
+  contents: read
+  id-token: write
+
+jobs:
+  publish:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Validate production endpoint
+        env:
+          REMOTE_URL: ${{ inputs.remote_url }}
+        run: |
+          case "$REMOTE_URL" in
+            https://*/mcp) ;;
+            *) echo "remote_url must be an HTTPS URL ending in /mcp" >&2; exit 1 ;;
+          esac
+          BASE_URL="${REMOTE_URL%/mcp}"
+          curl --fail --silent --show-error "$BASE_URL/healthz" >/dev/null
+          curl --fail --silent --show-error "$BASE_URL/.well-known/oauth-protected-resource" >/dev/null
+
+      - name: Generate registry server.json
+        env:
+          REMOTE_URL: ${{ inputs.remote_url }}
+          VERSION: ${{ inputs.version }}
+        run: |
+          jq --arg url "$REMOTE_URL" --arg version "$VERSION" \
+            '.version = $version | .remotes[0].url = $url' \
+            integrations/mcp/server.registry.template.json > integrations/mcp/server.json
+          cat integrations/mcp/server.json
+
+      - name: Install MCP Registry publisher
+        run: |
+          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+
+      - name: Authenticate with GitHub OIDC
+        working-directory: integrations/mcp
+        run: ../../mcp-publisher login github-oidc
+
+      - name: Publish ConvoWeave to official MCP Registry
+        working-directory: integrations/mcp
+        run: ../../mcp-publisher publish
