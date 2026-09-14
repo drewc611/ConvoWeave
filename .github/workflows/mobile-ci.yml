@@ -37,5 +37,11 @@ jobs:
       - name: Unit tests
         run: npm test
 
+      - name: Release preflight tests
+        run: npm run test:release
+
+      - name: Release configuration preflight
+        run: npm run release:check
+
       - name: Dependency audit
         run: npm audit --audit-level=high
