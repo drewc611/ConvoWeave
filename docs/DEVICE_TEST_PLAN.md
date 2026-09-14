@@ -112,4 +112,6 @@ For each device run, record:
 - reproduction steps
 - whether the failure affects stored data or privacy boundaries
 
+Use `docs/DEVICE_VALIDATION_REPORT_TEMPLATE.md` to capture the release-gate baseline, platform runs, privacy checks, failed IDs, and any explicit waivers in a consistent format.
+
 Do not include real meeting audio, transcripts, private notes, credentials, or personal data in GitHub issues.

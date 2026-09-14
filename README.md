@@ -92,7 +92,7 @@ GitHub Actions provide:
 
 The Dependency Review workflow is present but requires GitHub Dependency Graph to be enabled in repository settings.
 
-Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md` and tracked in Issue #5.
+Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`, and `docs/DEVICE_VALIDATION_REPORT_TEMPLATE.md` provides the evidence worksheet for Issue #5.
 
 ## Architecture and product docs
 
@@ -105,6 +105,7 @@ Read these before changing core behavior:
 - `docs/adr/0001-runtime-environments-and-provider-boundary.md`
 - `docs/adr/0002-openai-preview-processing-provider.md`
 - `docs/DEVICE_TEST_PLAN.md`
+- `docs/DEVICE_VALIDATION_REPORT_TEMPLATE.md`
 - `docs/STORE_RELEASE.md`
 - `store/PRIVACY_POLICY.md`
 - `LICENSE`
