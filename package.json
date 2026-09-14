@@ -9,7 +9,9 @@
     "ios": "expo start --ios",
     "web": "expo start --web",
     "typecheck": "tsc --noEmit",
-    "test": "vitest run && npm --prefix backend test"
+    "test": "vitest run",
+    "test:backend": "npm --prefix backend test",
+    "test:all": "npm run test && npm run test:backend"
   },
   "dependencies": {
     "expo": "~57.0.0",
