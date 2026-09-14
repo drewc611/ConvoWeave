@@ -16,6 +16,7 @@ test('development config is explicit and valid', () => {
   assert.equal(config.processingProvider, 'deterministic');
   assert.equal(config.port, 8787);
   assert.equal(config.openai, undefined);
+  assert.equal(config.oidc, undefined);
   assert.equal(config.storage.mode, 'memory');
   assert.equal(config.storage.audioRetention, 'delete-after-processing');
 });
@@ -73,6 +74,69 @@ test('development-token auth requires a token', () => {
   }), /DEV_TOKEN/);
 });
 
+test('OIDC config requires issuer, audience, and JWKS URL', () => {
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+  }), /OIDC_ISSUER/);
+
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    OIDC_ISSUER: 'https://issuer.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+  }), /OIDC_JWKS_URL/);
+});
+
+test('OIDC preview config is provider-neutral and uses safe defaults', () => {
+  const config = loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    OIDC_ISSUER: 'https://issuer.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'https://issuer.example/.well-known/jwks.json',
+  });
+  assert.equal(config.authMode, 'oidc');
+  assert.equal(config.devToken, undefined);
+  assert.equal(config.oidc.issuer, 'https://issuer.example');
+  assert.equal(config.oidc.audience, 'convoweave-api');
+  assert.deepEqual(config.oidc.allowedAlgorithms, ['RS256']);
+  assert.equal(config.oidc.jwksTimeoutMs, 5000);
+});
+
+test('OIDC rejects insecure issuer/JWKS URLs outside development and unsafe algorithms', () => {
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    OIDC_ISSUER: 'http://issuer.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'https://issuer.example/jwks',
+  }), /OIDC_ISSUER must use HTTPS/);
+
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    OIDC_ISSUER: 'https://issuer.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'http://issuer.example/jwks',
+  }), /OIDC_JWKS_URL must use HTTPS/);
+
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    OIDC_ISSUER: 'https://issuer.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'https://issuer.example/jwks',
+    OIDC_ALLOWED_ALGORITHMS: 'none',
+  }), /OIDC_ALLOWED_ALGORITHMS/);
+});
+
 test('preview OpenAI provider requires a backend-only API key', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
@@ -124,7 +188,25 @@ test('production refuses development authentication', () => {
     CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
     OPENAI_API_KEY: 'test-only-key',
     PUBLIC_BASE_URL: 'https://api.convoweave.example',
-  }), /Production cannot use development-token/);
+    CONVOWEAVE_STORAGE_MODE: 'filesystem',
+  }), /Production requires OIDC/);
+});
+
+test('production accepts standards-based OIDC when other production guards are satisfied', () => {
+  const config = loadBackendConfig({
+    CONVOWEAVE_ENV: 'production',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
+    OPENAI_API_KEY: 'test-only-key',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
+    CONVOWEAVE_STORAGE_MODE: 'filesystem',
+    CONVOWEAVE_AUDIO_RETENTION: 'delete-after-processing',
+    OIDC_ISSUER: 'https://login.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'https://login.example/.well-known/jwks.json',
+  });
+  assert.equal(config.authMode, 'oidc');
+  assert.equal(config.oidc.audience, 'convoweave-api');
 });
 
 test('invalid ports are rejected', () => {
