@@ -1,11 +1,21 @@
 # Anthropic directory submission packet
 
-Status: prepared, not yet submitted.
+Status: live preview ready, not yet submitted or approved.
 
 ConvoWeave is intended for two Anthropic distribution surfaces:
 
 1. Connectors Directory: remote MCP server.
 2. Plugin Directory: Claude plugin bundling the ConvoWeave meeting-memory skill and remote MCP connection.
+
+## Live preview connector
+
+- Preview MCP URL: `https://convoweave-mcp.onrender.com/mcp`
+- Base URL: `https://convoweave-mcp.onrender.com`
+- Transport: Streamable HTTP
+- Hosting: Render Free
+- Current mode: stateless preview without OAuth-backed ConvoWeave account access
+
+This endpoint is suitable for validating the source-backed meeting tools and Claude plugin connection. It must not be described as the production account-sync service.
 
 ## Connector listing
 
@@ -19,60 +29,61 @@ ConvoWeave is intended for two Anthropic distribution surfaces:
 
 **Transport:** Streamable HTTP
 
-**Authentication:** OAuth 2.0 / OIDC with scoped access tokens
-
-**Scopes:** configured production read and write scopes. Read tools require read scope. Mutating tools require write scope.
+**Production authentication target:** OAuth 2.0 / OIDC with scoped access tokens
 
 **Read tools:**
 - ConvoWeave capabilities
 - Structure meeting memory
 - Prepare meeting brief
 - Explain meeting-state changes
-- List my ConvoWeave threads
-- Read a ConvoWeave thread
-- Prepare a brief from my synced thread
+- List my ConvoWeave threads (production authenticated mode)
+- Read a ConvoWeave thread (production authenticated mode)
+- Prepare a brief from my synced thread (production authenticated mode)
 
 **Write/destructive tools:**
-- Sync a ConvoWeave thread
-- Delete a synced ConvoWeave thread
+- Sync a ConvoWeave thread (production authenticated mode)
+- Delete a synced ConvoWeave thread (production authenticated mode)
 
 All tools include human-readable titles and MCP safety annotations.
 
 ## Required three example prompts
 
-1. "Show me the open commitments and unresolved assumptions in my Product Launch thread, then prepare me for the next meeting."
-2. "Compare the last two meeting states and explain what changed in the decisions and commitments, with the source evidence."
-3. "Save these reviewed meeting notes into my ConvoWeave thread, but do not include any Private Sidecar notes."
+1. "Structure these meeting notes into decisions, commitments, assumptions, and open questions with source evidence."
+2. "Compare these two meeting states and explain what changed in the decisions and commitments."
+3. "Prepare a concise pre-meeting brief from this reviewed ConvoWeave meeting memory."
 
 ## Data handling
 
-- Account identity is derived from the verified OAuth issuer + subject, never a caller-supplied user ID.
+- The free preview does not provide account-backed thread storage.
 - Private Sidecar notes are not accepted by sync APIs and are not exposed by connector tools.
-- Production account snapshots are designed for encrypted S3 storage with a DynamoDB metadata index.
+- Production account identity is designed to come from verified OAuth issuer + subject, never a caller-supplied user ID.
 - Access tokens are not stored in meeting-memory records.
 - Raw mobile audio is not exposed through the account-sync MCP tools.
 - Generated meeting memory remains reviewable and source-backed.
 
 ## Reviewer setup
 
-Before submission, fill in:
+Current preview:
 
-- Production MCP URL: `PENDING_DEPLOYMENT/mcp`
-- Public documentation URL: `PENDING_PUBLIC_DOCS`
-- Public privacy-policy URL: `PENDING_PUBLIC_PRIVACY_URL`
-- Support contact: `PENDING_SUPPORT_CONTACT`
-- Reviewer test account: `PENDING_REVIEWER_ACCOUNT`
-- GA date: `PENDING_GA_DATE`
+- Preview MCP URL: `https://convoweave-mcp.onrender.com/mcp`
+- Public repository: `https://github.com/drewc611/ConvoWeave`
 
-Reviewer flow:
+Still required before production directory submission:
 
-1. Connect to the production MCP URL.
-2. Complete OAuth sign-in using the reviewer test account.
-3. Confirm read-only tools work with read scope.
-4. Confirm write tools require write scope.
-5. Confirm another account cannot access the first account's threads.
-6. Confirm Private Sidecar data never appears in synced thread payloads.
-7. Exercise all three example prompts above.
+- Public documentation URL
+- Public privacy-policy URL
+- Support contact
+- Production OAuth reviewer test account if account-backed tools are included
+- GA date
+
+Preview reviewer flow:
+
+1. Connect to `https://convoweave-mcp.onrender.com/mcp`.
+2. Confirm the source-backed stateless tools load.
+3. Exercise the three preview prompts above.
+4. Verify the tool responses do not claim access to synced ConvoWeave accounts.
+
+Production account-backed reviewer flow must additionally verify OAuth scopes, cross-account isolation, and Private Sidecar exclusion.
 
 ## Claude plugin submission
 
@@ -83,22 +94,23 @@ Contents:
 - `.mcp.json`
 - `skills/convoweave-meeting-memory/SKILL.md`
 
-Before submission:
+The plugin MCP configuration now points directly at the live preview endpoint.
 
-1. Set `CONVOWEAVE_MCP_URL` to the production HTTPS `/mcp` endpoint.
-2. Run `claude plugin validate integrations/claude`.
-3. Test install from the public GitHub repository.
-4. Verify OAuth connection and the meeting-memory skill together.
+Before directory submission:
+
+1. Run `claude plugin validate integrations/claude`.
+2. Test install from the public GitHub repository.
+3. Verify the live preview MCP tools load in Claude.
+4. For any account-backed listing claims, switch to the persistent OAuth-enabled deployment and validate that flow separately.
 5. Submit the public GitHub plugin path through Anthropic's plugin submission portal.
 
 ## Remaining account-holder gates
 
-The repository can prepare and validate the software, but final Anthropic submission requires:
+The repository and live preview endpoint are ready. Final Anthropic submission still requires:
 
-- a live public HTTPS MCP endpoint;
 - a Claude Team/Enterprise organization Owner or authorized directory manager for Connector Directory submission;
 - an authenticated Claude.ai or Anthropic Console account for plugin submission;
 - acceptance of Anthropic Software Directory Terms and Policy;
-- final reviewer/test-account credentials and public support/privacy URLs.
+- final public support/privacy URLs and reviewer credentials for any production account-backed features.
 
-Do not mark the connector or plugin as approved until Anthropic has actually accepted the listing.
+Do not mark the connector or plugin as submitted or approved until those account-side actions have actually occurred.
