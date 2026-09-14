@@ -8,7 +8,10 @@ ENV NODE_ENV=production \
     CONVOWEAVE_DATA_DIR=/data/convoweave
 
 COPY backend/package.json ./package.json
+RUN npm install --omit=dev --ignore-scripts --no-audit --no-fund
+
 COPY backend/*.mjs ./
+COPY backend/auth ./auth
 COPY backend/providers ./providers
 COPY backend/storage ./storage
 

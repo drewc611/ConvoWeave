@@ -35,11 +35,17 @@ jobs:
         with:
           node-version: 24
 
+      - name: Install backend dependencies
+        run: npm --prefix backend install --ignore-scripts --no-audit --no-fund
+
       - name: Syntax checks
         run: |
           node --check backend/config.mjs
           node --check backend/server.mjs
           node --check backend/openai-live-smoke.mjs
+          node --check backend/auth/index.mjs
+          node --check backend/auth/developmentToken.mjs
+          node --check backend/auth/oidc.mjs
           node --check backend/providers/index.mjs
           node --check backend/providers/deterministic.mjs
           node --check backend/providers/openai.mjs
@@ -47,8 +53,11 @@ jobs:
           node --check backend/storage/sessionStore.mjs
           node --check backend/storage/audioStore.mjs
 
-      - name: Backend contract, persistence, and retention tests
+      - name: Backend auth, contract, persistence, and retention tests
         run: npm --prefix backend test
+
+      - name: Backend dependency audit
+        run: npm --prefix backend audit --audit-level=high --omit=dev
 
       - name: Build backend container
         run: docker build -f backend/Dockerfile -t convoweave-backend:test .
@@ -69,7 +78,7 @@ jobs:
             sleep 1
           done
           curl --fail --silent http://127.0.0.1:8787/healthz
-          curl --fail --silent http://127.0.0.1:8787/readyz
+          curl --fail --silent http://127.0.0.1:8787/readyz | grep 'development-token'
           docker stop convoweave-backend-test >/dev/null
           trap - EXIT
 

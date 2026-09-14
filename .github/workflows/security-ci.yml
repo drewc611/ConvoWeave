@@ -47,8 +47,11 @@ jobs:
           node-version: 24
           package-manager-cache: false
 
-      - name: Install dependencies without lifecycle scripts
-        run: npm install --ignore-scripts
+      - name: Install mobile dependencies without lifecycle scripts
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Install backend dependencies without lifecycle scripts
+        run: npm --prefix backend install --ignore-scripts --no-audit --no-fund
 
       - name: Generate CycloneDX SBOM
         uses: anchore/sbom-action@v0.24.0

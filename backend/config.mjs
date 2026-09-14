@@ -1,8 +1,9 @@
 const ENVIRONMENTS = new Set(['development', 'preview', 'production']);
-const AUTH_MODES = new Set(['development-token']);
+const AUTH_MODES = new Set(['development-token', 'oidc']);
 const PROCESSING_PROVIDERS = new Set(['deterministic', 'openai']);
 const STORAGE_MODES = new Set(['memory', 'filesystem']);
 const AUDIO_RETENTION_MODES = new Set(['delete-after-processing', 'retain-preview']);
+const OIDC_ALGORITHMS = new Set(['RS256', 'RS384', 'RS512', 'PS256', 'PS384', 'PS512', 'ES256', 'ES384', 'ES512', 'EdDSA']);
 
 function parsePort(value) {
   const port = Number.parseInt(value ?? '8787', 10);
@@ -49,6 +50,45 @@ function storageConfig(environment, env) {
   };
 }
 
+function oidcConfig(environment, authMode, env) {
+  if (authMode !== 'oidc') return undefined;
+
+  const issuer = env.OIDC_ISSUER?.trim();
+  const audience = env.OIDC_AUDIENCE?.trim();
+  const jwksUrl = env.OIDC_JWKS_URL?.trim();
+  if (!issuer) throw new Error('OIDC_ISSUER is required when using oidc authentication.');
+  if (!audience) throw new Error('OIDC_AUDIENCE is required when using oidc authentication.');
+  if (!jwksUrl) throw new Error('OIDC_JWKS_URL is required when using oidc authentication.');
+
+  const issuerUrl = new URL(issuer);
+  const parsedJwksUrl = new URL(jwksUrl);
+  if (environment !== 'development' && issuerUrl.protocol !== 'https:') {
+    throw new Error('OIDC_ISSUER must use HTTPS outside development.');
+  }
+  if (environment !== 'development' && parsedJwksUrl.protocol !== 'https:') {
+    throw new Error('OIDC_JWKS_URL must use HTTPS outside development.');
+  }
+
+  const allowedAlgorithms = (env.OIDC_ALLOWED_ALGORITHMS?.trim() || 'RS256')
+    .split(',')
+    .map((value) => value.trim())
+    .filter(Boolean);
+  if (allowedAlgorithms.length === 0 || allowedAlgorithms.some((algorithm) => !OIDC_ALGORITHMS.has(algorithm))) {
+    throw new Error('OIDC_ALLOWED_ALGORITHMS contains an unsupported or unsafe algorithm.');
+  }
+
+  return {
+    issuer,
+    audience,
+    jwksUrl: parsedJwksUrl.toString(),
+    allowedAlgorithms: [...new Set(allowedAlgorithms)],
+    jwksTimeoutMs: parsePositiveInteger(env.OIDC_JWKS_TIMEOUT_MS, 5000, 'OIDC_JWKS_TIMEOUT_MS'),
+    jwksCacheMaxAgeMs: parsePositiveInteger(env.OIDC_JWKS_CACHE_MAX_AGE_MS, 600000, 'OIDC_JWKS_CACHE_MAX_AGE_MS'),
+    jwksCooldownMs: parsePositiveInteger(env.OIDC_JWKS_COOLDOWN_MS, 30000, 'OIDC_JWKS_COOLDOWN_MS'),
+    clockToleranceSeconds: parsePositiveInteger(env.OIDC_CLOCK_TOLERANCE_SECONDS, 5, 'OIDC_CLOCK_TOLERANCE_SECONDS'),
+  };
+}
+
 export function loadBackendConfig(env = process.env) {
   const environment = env.CONVOWEAVE_ENV ?? 'development';
   if (!ENVIRONMENTS.has(environment)) {
@@ -75,8 +115,8 @@ export function loadBackendConfig(env = process.env) {
     throw new Error('OPENAI_API_KEY is required when using the openai processing provider.');
   }
 
-  if (environment === 'production' && authMode === 'development-token') {
-    throw new Error('Production cannot use development-token authentication. Configure a production auth adapter before deployment.');
+  if (environment === 'production' && authMode !== 'oidc') {
+    throw new Error('Production requires OIDC authentication.');
   }
 
   if (environment === 'production' && processingProvider === 'deterministic') {
@@ -92,6 +132,7 @@ export function loadBackendConfig(env = process.env) {
     environment,
     authMode,
     devToken,
+    oidc: oidcConfig(environment, authMode, env),
     processingProvider,
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
