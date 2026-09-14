@@ -5,103 +5,48 @@
 [![Backend CI](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml)
 [![Security CI](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml)
 [![CodeQL](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml)
-[![License](https://img.shields.io/github/license/drewc611/ConvoWeave?style=flat-square)](https://github.com/drewc611/ConvoWeave/blob/main/LICENSE)
-[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-0A84FF?style=flat-square)](#stable-product-on-main)
-[![Storage](https://img.shields.io/badge/storage-local--first-SQLite-6f42c1?style=flat-square)](#stable-product-on-main)
-[![Architecture](https://img.shields.io/badge/architecture-evidence--backed-memory-ff8c00?style=flat-square)](#architecture-and-product-docs)
 
 **The AI companion that remembers your meetings.**
 
 ConvoWeave is a mobile-first meeting memory and decision system. It preserves what changed across conversations, who committed to what, why decisions were made, which assumptions remain unverified, and where current statements conflict with earlier evidence.
 
-It is intentionally not a transcript-summary app. Raw evidence and generated interpretation remain separate, and important memory keeps source proof.
+## Stable product
 
-## Product fit and flow
+The stable mobile product remains local-first and works without cloud AI:
 
-```mermaid
-flowchart LR
-    A[Meeting Conversations] --> B[ConvoWeave]
-    B --> C[Source-Proof Evidence]
-    B --> D[Human-Reviewed Memory]
-    C --> E[Decision Ledger]
-    C --> F[Commitment Radar]
-    C --> G[Assumption Register]
-    D --> E
-    D --> F
-    D --> G
-    E --> H[Team Alignment]
-    F --> H
-    G --> H
-```
-
-```mermaid
-flowchart TD
-    A[Record Meeting On Device] --> B[Local Draft + Checkpoints]
-    B --> C[Manual Review + Confirmations]
-    C --> D[Deterministic What Changed]
-    D --> E[Durable Local Memory]
-    C --> F{Remote Processing Opt-In?}
-    F -- No --> E
-    F -- Yes --> G[Backend Provider Adapter]
-    G --> H[Schema-Constrained Proposals]
-    H --> C
-```
-
-## Stable product on `main`
-
-The stable product is local-first and usable without any cloud AI provider:
-
-- real on-device microphone capture with explicit permission and recording notice
-- pause, resume, stop, duration tracking and interruption handling
-- durable recording drafts checkpointed during capture with restart recovery
-- SQLite-backed local persistence behind repository interfaces
-- persistent meeting threads
-- real manual meeting review: paste/type actual notes and add confirmed decisions, commitments and assumptions
-- resumable review state
-- deterministic per-meeting `What Changed?` change sets
-- Decision Ledger with active, disputed, reversed and superseded states
-- evidence-backed decision supersede lineage that preserves the prior decision
-- Commitment Radar with owner, due date, deterministic risk state and completion/cancellation/reopen
-- Assumption Register with supported/disproven/expired transitions
-- persisted contradiction review requiring both current and prior evidence
+- on-device microphone capture and restart-safe recording drafts
+- SQLite-backed meeting threads and review state
+- manual review of real notes, decisions, commitments and assumptions
+- What Changed, Decision Ledger, Commitment Radar and Assumption Register
+- evidence-backed contradiction review
 - Private Sidecar notes with an explicit promotion boundary
-- reusable Source Proof showing meeting reference, speaker when known, timestamps, segment IDs and quote
+- Source Proof for important meeting memory
 
-Remote processing exists behind a separate backend/client boundary but is not the shipping default.
+Remote processing is optional per meeting and does not replace human review.
 
-## Processing platform
+## Backend platform
 
-The provider-neutral processing platform is now part of `main` and includes:
+`main` now includes production-shaped backend boundaries for:
 
-- explicit development / preview / production configuration
-- production startup safety guards
-- provider adapter boundaries
-- stable request IDs and API error contracts
-- liveness/readiness probes
-- containerized backend runtime
-- dedicated backend CI and live container smoke tests
-- environment-safe mobile processing-client selection
+- development / preview / production configuration
+- preview OpenAI transcription and structured extraction behind a replaceable provider adapter
+- durable preview session/audio storage and delete-after-processing retention
+- provider-neutral OIDC/JWT authentication and per-user processing-session ownership
+- request IDs, stable API errors, liveness/readiness and container execution
+- backend-specific tests, dependency audit and container smoke validation
 
-Issue #11 records that completed platform slice.
+Provider credentials and identity-provider secrets never belong in the mobile bundle.
 
-## Current development slice
+## Preview deployment
 
-Issue #13 and `feat/openai-preview-provider-v1` add a real preview-only AI provider behind the existing backend contract. This does not change the local-first shipping default.
+The backend is distributed as a container. After Backend CI succeeds on `main`, GitHub Actions can publish validated images to:
 
-The preview adapter currently targets:
+- `ghcr.io/drewc611/convoweave-backend:main`
+- `ghcr.io/drewc611/convoweave-backend:sha-<commit>`
 
-- `gpt-transcribe` for uploaded meeting-audio transcription
-- `gpt-5.6-luna` for strict schema-constrained structured-memory extraction
-- backend-only provider credentials
-- `store: false` on extraction responses
-- exact transcript-quote validation before provider output becomes a ConvoWeave proposal
-- human review before any generated proposal becomes durable meeting memory
+The immutable SHA tag is the deployment/rollback reference. `deploy/docker-compose.preview.yml` is the portable preview runtime with durable storage and runtime-only configuration.
 
-Contradiction generation remains excluded from this provider call because ConvoWeave requires both current and prior evidence for a durable contradiction.
-
-Normal CI uses mocked provider responses and requires no external API key. An operator-only live smoke command exists for non-sensitive preview test audio.
-
-See ADR 0002 for provider rationale, limitations, cost/privacy tradeoffs, and the replacement boundary.
+See `docs/PREVIEW_DEPLOYMENT.md`.
 
 ## Development
 
@@ -112,69 +57,51 @@ npm test
 npm start
 ```
 
-For microphone, interruption and restart behavior, validate on a physical device using Expo Go, an Expo development build, or an EAS internal/preview build. Do not treat browser or simulator-only validation as the release gate.
+Backend validation is separate:
 
-Development process and release promotion rules are documented in `docs/DEVELOPMENT_WORKFLOW.md`.
+```bash
+npm --prefix backend install
+npm run test:backend
+```
 
-## Validation
+Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`.
 
-GitHub Actions provide:
-
-- strict TypeScript validation
-- Vitest unit and repository restart-state tests
-- backend Node contract tests
-- backend provider adapter tests with mocked external HTTP
-- backend syntax/container/smoke validation when backend code changes
-- high-severity dependency audit
-- CodeQL JavaScript/TypeScript analysis
-- Gitleaks secret scanning
-- CycloneDX SBOM generation
-- Dependabot for npm and GitHub Actions
-
-The Dependency Review workflow is present but requires GitHub Dependency Graph to be enabled in repository settings.
-
-Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md` and tracked in Issue #5.
-
-## Architecture and product docs
-
-Read these before changing core behavior:
+## Architecture and operations docs
 
 - `CODEX.md`
-- `docs/DEVELOPMENT_WORKFLOW.md`
 - `docs/PRODUCT_STRATEGY.md`
+- `docs/DEVELOPMENT_WORKFLOW.md`
 - `docs/BACKEND_API.md`
-- `docs/adr/0001-runtime-environments-and-provider-boundary.md`
-- `docs/adr/0002-openai-preview-processing-provider.md`
+- `docs/AUTHENTICATION.md`
+- `docs/PREVIEW_BACKEND_STORAGE.md`
+- `docs/PREVIEW_DEPLOYMENT.md`
 - `docs/DEVICE_TEST_PLAN.md`
 - `docs/STORE_RELEASE.md`
+- `docs/adr/0001-runtime-environments-and-provider-boundary.md`
+- `docs/adr/0002-openai-preview-processing-provider.md`
+- `docs/adr/0003-preview-persistence-and-audio-retention.md`
+- `docs/adr/0004-oidc-authentication-boundary.md`
+- `docs/adr/0005-preview-container-distribution.md`
 - `store/PRIVACY_POLICY.md`
 - `LICENSE`
 
-Core invariants:
+## Core invariants
 
-1. Raw evidence is not the same thing as generated memory.
+1. Raw evidence and generated interpretation remain separate.
 2. Generated proposals require human review before becoming durable memory.
-3. Prior decisions are not silently overwritten.
-4. A durable contradiction requires evidence from both sides.
+3. Prior decisions are never silently overwritten.
+4. Durable contradictions require evidence from both sides.
 5. Unpromoted Private Sidecar notes remain outside shared context.
 6. Remote processing is opt-in per meeting.
 7. Provider credentials never belong in the mobile bundle.
-8. `main` remains the stable/releasable source of truth; feature work enters through reviewed branches.
+8. Bearer tokens are never persisted in processing-session records.
+9. `main` remains the stable/releasable source of truth.
 
-## Privacy
+## Remaining external release gates
 
-The stable product keeps audio, reviews and persisted meeting state on device and does not automatically upload meeting audio.
+Repository engineering can package the product, but a real internet preview still requires runtime account configuration for hosting, OIDC identity, provider credentials and HTTPS. App-store distribution additionally requires the Apple/Google/EAS account-holder steps already tracked in the repository.
 
-The preview remote-processing path still requires explicit meeting-specific approval before audio can leave the device. `store: false` on a provider request must not be treated as a guarantee of zero provider-side retention. Public distribution with remote processing requires a current provider data-control review plus matching App Store, Google Play and privacy-policy disclosures.
-
-## Release and engineering tracking
-
-- Issue #3: Apple Developer, App Store Connect, Google Play and EAS account-holder steps
-- Issue #5: physical iOS/Android device validation
-- Issue #11: completed production processing platform v1
-- Issue #13: preview AI processing provider v1
-
-Do not commit Apple credentials, App Store Connect keys, Google service-account JSON, Android keystores/passwords, Expo access tokens, provider secrets, recordings, transcripts or user meeting data.
+Do not commit store credentials, signing material, Expo tokens, provider secrets, recordings, transcripts, or user meeting data.
 
 ## Proprietary software
 
