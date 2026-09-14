@@ -1,28 +1,34 @@
 # ChatGPT integration
 
-ConvoWeave uses one remote MCP server plus a portable skill package.
+ConvoWeave uses the shared remote MCP service in `integrations/mcp`.
 
-## Current ChatGPT path
+## OAuth account connection
 
-ChatGPT Plugins are the primary discovery surface. A plugin can include skills and connected apps. The Apps SDK is the recommended application packaging path and uses MCP for tools/data.
+1. Deploy the ConvoWeave MCP service to a public HTTPS endpoint.
+2. Configure `CONVOWEAVE_MCP_AUTH_MODE=oidc` plus `CONVOWEAVE_MCP_PUBLIC_BASE_URL`, `OIDC_ISSUER`, `OIDC_AUDIENCE`, and `OIDC_JWKS_URL`.
+3. Register the ChatGPT OAuth client and redirect URI with that identity provider.
+4. Allow `convoweave.read` and `convoweave.write`. Enable refresh/offline access when required by the host so the connection can survive access-token expiry.
+5. In ChatGPT developer mode, create the MCP app using the deployed `/mcp` endpoint, complete OAuth, then scan tools.
+6. Test with a non-production account before submitting or publishing.
 
-Use this repository as follows:
+The MCP service publishes protected-resource metadata at `/.well-known/oauth-protected-resource` so compatible hosts can discover the authorization server and scopes.
 
-1. Deploy `integrations/mcp` behind a public HTTPS endpoint, for example `https://api.example.com/mcp`.
-2. In ChatGPT Developer Mode, add/test the remote MCP app against that endpoint.
-3. Install or upload `skills/convoweave-meeting-memory/SKILL.md` as the workflow skill during development.
-4. Validate that the MCP tools are discovered and that source-proof failures are handled correctly.
-5. Prepare the Plugin/App submission with the MCP connectivity details, privacy policy, support information, testing instructions, and country availability requested by the OpenAI submission flow.
-6. Do not add account-data tools until OAuth/OIDC and user-scoped authorization are implemented.
+## Account-backed tools
 
-## Marketplace boundary
+After OAuth, ChatGPT can use:
 
-The repository prepares the code and skill package. Publication/review in the ChatGPT Plugin Directory is an account-holder action and is subject to OpenAI review and current developer terms.
+- `convoweave_list_threads`
+- `convoweave_get_thread`
+- `convoweave_prepare_account_brief`
+- `convoweave_upsert_thread`
+- `convoweave_delete_thread`
 
-## Initial user prompts
+Write/delete actions are marked as write/destructive MCP actions. ConvoWeave identifies the account only from the verified access-token principal (`issuer + subject`); tool inputs cannot choose another user ID.
 
-- “ConvoWeave, turn these meeting notes into proposed decisions and commitments with evidence.”
-- “Use ConvoWeave to show what changed between these two meeting states.”
-- “Create a pre-meeting brief from these open commitments and assumptions.”
+## Privacy boundary
 
-The v1 connector is stateless and does not expose a user's mobile ConvoWeave database.
+Private Sidecar notes are not part of the cloud sync schema and must never be added to marketplace fixtures, MCP tool payloads, logs, or synced account snapshots.
+
+## Directory readiness
+
+Before public ChatGPT App Directory submission, complete the current OpenAI review requirements, deploy durable production account storage, publish privacy/support URLs, verify retention/account-deletion behavior, and register production OAuth redirect URIs. Marketplace publication remains an account-holder/review action.
