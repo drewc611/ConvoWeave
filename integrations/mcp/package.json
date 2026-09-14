@@ -1,17 +1,18 @@
 {
   "name": "@convoweave/mcp-integration",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check tools.mjs",
-    "test": "npm run check && node --test tools.node-test.mjs"
+    "check": "node --check server.mjs && node --check tools.mjs && node --check auth.mjs && node --check accountStore.mjs && node --check accountApi.mjs && node --check accountTools.mjs",
+    "test": "npm run check && node --test *.node-test.mjs"
   },
   "dependencies": {
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
+    "jose": "^6.1.0",
     "zod": "^4.1.0"
   }
 }
