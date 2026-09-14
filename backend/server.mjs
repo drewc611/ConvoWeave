@@ -1,5 +1,6 @@
-import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypto';
+import { createHash, randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
+import { createAuthVerifier } from './auth/index.mjs';
 import { loadBackendConfig } from './config.mjs';
 import { createProcessor } from './providers/index.mjs';
 import { createStorage } from './storage/index.mjs';
@@ -48,35 +49,31 @@ async function readBody(request, maxBytes) {
   return Buffer.concat(chunks);
 }
 
-function safeTokenEqual(actual, expected) {
-  if (!actual || !expected) return false;
-  const a = Buffer.from(actual);
-  const b = Buffer.from(expected);
-  if (a.length !== b.length) return false;
-  return timingSafeEqual(a, b);
-}
-
 function bearerToken(request) {
   const authorization = request.headers.authorization;
   if (!authorization?.startsWith('Bearer ')) return null;
-  return authorization.slice('Bearer '.length);
-}
-
-function isAuthorized(request, config) {
-  if (config.authMode === 'development-token') {
-    return safeTokenEqual(bearerToken(request), config.devToken);
-  }
-  return false;
+  const token = authorization.slice('Bearer '.length).trim();
+  return token || null;
 }
 
 export function createBackendServer({
   config = loadBackendConfig(),
   processor = createProcessor(config),
+  authVerifier = createAuthVerifier(config),
   sessionStore = createInMemorySessionStore(),
   audioStore = createInMemoryAudioStore(),
   logger = console,
 } = {}) {
   const recoveryTasks = new Map();
+
+  async function authenticate(request) {
+    return authVerifier.verify(bearerToken(request));
+  }
+
+  function ownsSession(session, principal) {
+    if (session.ownerSubject) return session.ownerSubject === principal.subject;
+    return config.authMode === 'development-token' && principal.authMode === 'development-token';
+  }
 
   async function applyAudioRetention(session, requestId) {
     if (!session.audioRef || config.storage?.audioRetention !== 'delete-after-processing') return session;
@@ -157,17 +154,19 @@ export function createBackendServer({
       }
 
       if (request.method === 'GET' && url.pathname === '/readyz') {
-        const [processorReady, sessionsReady, audioReady] = await Promise.all([
+        const [processorReady, authReady, sessionsReady, audioReady] = await Promise.all([
           processor.ready(),
+          authVerifier.ready(),
           sessionStore.ready(),
           audioStore.ready(),
         ]);
-        const ready = processorReady && sessionsReady && audioReady;
+        const ready = processorReady && authReady && sessionsReady && audioReady;
         json(response, ready ? 200 : 503, {
           status: ready ? 'ready' : 'not-ready',
           service: SERVICE_NAME,
           environment: config.environment,
           provider: processor.name,
+          auth: authVerifier.name,
           storage: {
             sessions: sessionStore.kind,
             audio: audioStore.kind,
@@ -227,7 +226,8 @@ export function createBackendServer({
         return;
       }
 
-      if (!isAuthorized(request, config)) {
+      const principal = await authenticate(request);
+      if (!principal) {
         apiError(response, 401, 'unauthorized', 'Authentication is required for this endpoint.', requestId);
         return;
       }
@@ -264,6 +264,8 @@ export function createBackendServer({
           durationMs: Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0,
           uploadScope: input.uploadScope,
           approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt : null,
+          ownerSubject: principal.subject,
+          authIssuer: principal.issuer,
           status: 'created',
           createdAt: new Date().toISOString(),
           uploadTokenHash: hashUploadToken(uploadToken),
@@ -293,6 +295,10 @@ export function createBackendServer({
         let session = await sessionStore.get(id);
         if (!session) {
           apiError(response, 404, 'processing-session-not-found', 'The processing session does not exist.', requestId);
+          return;
+        }
+        if (!ownsSession(session, principal)) {
+          apiError(response, 403, 'forbidden', 'The processing session belongs to a different user.', requestId);
           return;
         }
 
@@ -336,9 +342,10 @@ export function createBackendServer({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const config = loadBackendConfig();
   const processor = createProcessor(config);
+  const authVerifier = createAuthVerifier(config);
   const storage = createStorage(config);
-  const server = createBackendServer({ config, processor, ...storage });
+  const server = createBackendServer({ config, processor, authVerifier, ...storage });
   server.listen(config.port, config.host, () => {
-    console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name}, ${config.storage.mode})`);
+    console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name}, ${authVerifier.name}, ${config.storage.mode})`);
   });
 }
