@@ -4,11 +4,17 @@ WORKDIR /app
 
 ENV NODE_ENV=production \
     HOST=0.0.0.0 \
-    PORT=8787
+    PORT=8787 \
+    CONVOWEAVE_DATA_DIR=/data/convoweave
 
 COPY backend/package.json ./package.json
 COPY backend/*.mjs ./
 COPY backend/providers ./providers
+COPY backend/storage ./storage
+
+RUN mkdir -p /data/convoweave && chown -R node:node /data/convoweave
+
+VOLUME ["/data/convoweave"]
 
 USER node
 

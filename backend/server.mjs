@@ -2,6 +2,9 @@ import { createHash, randomBytes, randomUUID, timingSafeEqual } from 'node:crypt
 import { createServer } from 'node:http';
 import { loadBackendConfig } from './config.mjs';
 import { createProcessor } from './providers/index.mjs';
+import { createStorage } from './storage/index.mjs';
+import { createInMemoryAudioStore } from './storage/audioStore.mjs';
+import { createInMemorySessionStore, hashUploadToken } from './storage/sessionStore.mjs';
 
 const MAX_JSON_BYTES = 64 * 1024;
 const MAX_AUDIO_BYTES = 50 * 1024 * 1024;
@@ -69,10 +72,77 @@ function isAuthorized(request, config) {
 export function createBackendServer({
   config = loadBackendConfig(),
   processor = createProcessor(config),
+  sessionStore = createInMemorySessionStore(),
+  audioStore = createInMemoryAudioStore(),
   logger = console,
 } = {}) {
-  const sessions = new Map();
-  const uploadTokens = new Map();
+  const recoveryTasks = new Map();
+
+  async function applyAudioRetention(session, requestId) {
+    if (!session.audioRef || config.storage?.audioRetention !== 'delete-after-processing') return session;
+    try {
+      await audioStore.remove(session.audioRef);
+      const updated = {
+        ...session,
+        audioRef: undefined,
+        audioDeletedAt: new Date().toISOString(),
+      };
+      await sessionStore.put(updated);
+      return updated;
+    } catch (error) {
+      logger.error?.('audio-retention-delete-failed', {
+        requestId,
+        sessionId: session.id,
+        meetingId: session.meetingId,
+        message: error instanceof Error ? error.message : 'unknown-error',
+      });
+      return session;
+    }
+  }
+
+  async function processStoredSession(session, requestId) {
+    const existing = recoveryTasks.get(session.id);
+    if (existing) return existing;
+
+    const task = (async () => {
+      let current = session;
+      try {
+        if (!current.audioRef) throw new Error('Processing session has no retained audio object.');
+        const audio = await audioStore.read(current.audioRef);
+        const result = await processor.process({ session: { ...current }, audio });
+        current = {
+          ...current,
+          result,
+          status: 'ready',
+          completedAt: new Date().toISOString(),
+          failureCode: undefined,
+        };
+        await sessionStore.put(current);
+      } catch (error) {
+        current = {
+          ...current,
+          status: 'failed',
+          failureCode: 'processing-provider-failed',
+          failedAt: new Date().toISOString(),
+        };
+        await sessionStore.put(current);
+        logger.error?.('processing-provider-failed', {
+          requestId,
+          sessionId: current.id,
+          meetingId: current.meetingId,
+          provider: processor.name,
+          message: error instanceof Error ? error.message : 'unknown-error',
+        });
+        throw error;
+      } finally {
+        current = await applyAudioRetention(current, requestId);
+      }
+      return current;
+    })().finally(() => recoveryTasks.delete(session.id));
+
+    recoveryTasks.set(session.id, task);
+    return task;
+  }
 
   const server = createServer(async (request, response) => {
     const requestId = requestIdFor(request);
@@ -87,25 +157,33 @@ export function createBackendServer({
       }
 
       if (request.method === 'GET' && url.pathname === '/readyz') {
-        const ready = await processor.ready();
+        const [processorReady, sessionsReady, audioReady] = await Promise.all([
+          processor.ready(),
+          sessionStore.ready(),
+          audioStore.ready(),
+        ]);
+        const ready = processorReady && sessionsReady && audioReady;
         json(response, ready ? 200 : 503, {
           status: ready ? 'ready' : 'not-ready',
           service: SERVICE_NAME,
           environment: config.environment,
           provider: processor.name,
+          storage: {
+            sessions: sessionStore.kind,
+            audio: audioStore.kind,
+          },
         }, requestId);
         return;
       }
 
       if (request.method === 'PUT' && url.pathname.startsWith('/v1/uploads/')) {
         const token = decodeURIComponent(url.pathname.slice('/v1/uploads/'.length));
-        const sessionId = uploadTokens.get(token);
-        if (!sessionId) {
+        const session = await sessionStore.findByUploadToken(token);
+        if (!session) {
           apiError(response, 404, 'upload-not-found', 'The upload capability is unknown or already consumed.', requestId);
           return;
         }
-        const session = sessions.get(sessionId);
-        if (!session || session.uploadToken !== token || session.uploadConsumedAt) {
+        if (session.uploadConsumedAt) {
           apiError(response, 410, 'upload-expired', 'The upload capability has expired or already been used.', requestId);
           return;
         }
@@ -116,35 +194,31 @@ export function createBackendServer({
           return;
         }
 
-        session.audioBytes = audio.length;
-        session.audioSha256 = createHash('sha256').update(audio).digest('hex');
-        session.uploadConsumedAt = new Date().toISOString();
-        session.status = 'processing';
-        uploadTokens.delete(token);
+        const audioRef = await audioStore.write(session.id, audio);
+        let processingSession = {
+          ...session,
+          audioBytes: audio.length,
+          audioSha256: createHash('sha256').update(audio).digest('hex'),
+          audioRef,
+          uploadConsumedAt: new Date().toISOString(),
+          uploadTokenHash: undefined,
+          status: 'processing',
+        };
+        await sessionStore.put(processingSession);
 
         logger.info?.('processing-audio-received', {
           requestId,
-          sessionId: session.id,
-          meetingId: session.meetingId,
-          bytes: session.audioBytes,
-          sha256: session.audioSha256,
+          sessionId: processingSession.id,
+          meetingId: processingSession.meetingId,
+          bytes: processingSession.audioBytes,
+          sha256: processingSession.audioSha256,
           provider: processor.name,
+          audioStore: audioStore.kind,
         });
 
         try {
-          session.result = await processor.process({ session: { ...session }, audio });
-          session.status = 'ready';
-          session.completedAt = new Date().toISOString();
-        } catch (error) {
-          session.status = 'failed';
-          session.failureCode = 'processing-provider-failed';
-          logger.error?.('processing-provider-failed', {
-            requestId,
-            sessionId: session.id,
-            meetingId: session.meetingId,
-            provider: processor.name,
-            message: error instanceof Error ? error.message : 'unknown-error',
-          });
+          processingSession = await processStoredSession(processingSession, requestId);
+        } catch {
           apiError(response, 502, 'processing-provider-failed', 'The processing provider could not complete this meeting.', requestId);
           return;
         }
@@ -192,10 +266,9 @@ export function createBackendServer({
           approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt : null,
           status: 'created',
           createdAt: new Date().toISOString(),
-          uploadToken,
+          uploadTokenHash: hashUploadToken(uploadToken),
         };
-        sessions.set(id, session);
-        uploadTokens.set(uploadToken, id);
+        await sessionStore.put(session);
 
         const origin = config.publicBaseUrl ?? `http://${host}`;
         json(response, 201, {
@@ -210,17 +283,27 @@ export function createBackendServer({
           meetingId: session.meetingId,
           uploadScope: session.uploadScope,
           provider: processor.name,
+          sessionStore: sessionStore.kind,
         });
         return;
       }
 
       if (request.method === 'GET' && url.pathname.startsWith('/v1/processing-sessions/')) {
         const id = decodeURIComponent(url.pathname.slice('/v1/processing-sessions/'.length));
-        const session = sessions.get(id);
+        let session = await sessionStore.get(id);
         if (!session) {
           apiError(response, 404, 'processing-session-not-found', 'The processing session does not exist.', requestId);
           return;
         }
+
+        if (session.status === 'processing' && session.audioRef) {
+          try {
+            session = await processStoredSession(session, requestId);
+          } catch {
+            session = await sessionStore.get(id) ?? session;
+          }
+        }
+
         if (session.status === 'failed') {
           apiError(response, 502, session.failureCode ?? 'processing-failed', 'The processing session failed.', requestId);
           return;
@@ -253,8 +336,9 @@ export function createBackendServer({
 if (import.meta.url === `file://${process.argv[1]}`) {
   const config = loadBackendConfig();
   const processor = createProcessor(config);
-  const server = createBackendServer({ config, processor });
+  const storage = createStorage(config);
+  const server = createBackendServer({ config, processor, ...storage });
   server.listen(config.port, config.host, () => {
-    console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name})`);
+    console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name}, ${config.storage.mode})`);
   });
 }

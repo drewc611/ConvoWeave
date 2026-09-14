@@ -43,14 +43,17 @@ jobs:
           node --check backend/providers/index.mjs
           node --check backend/providers/deterministic.mjs
           node --check backend/providers/openai.mjs
+          node --check backend/storage/index.mjs
+          node --check backend/storage/sessionStore.mjs
+          node --check backend/storage/audioStore.mjs
 
-      - name: Backend contract tests
+      - name: Backend contract, persistence, and retention tests
         run: npm --prefix backend test
 
       - name: Build backend container
         run: docker build -f backend/Dockerfile -t convoweave-backend:test .
 
-      - name: Smoke test container health and readiness
+      - name: Smoke test development container
         run: |
           docker run -d --rm \
             --name convoweave-backend-test \
@@ -67,3 +70,27 @@ jobs:
           done
           curl --fail --silent http://127.0.0.1:8787/healthz
           curl --fail --silent http://127.0.0.1:8787/readyz
+          docker stop convoweave-backend-test >/dev/null
+          trap - EXIT
+
+      - name: Smoke test preview filesystem storage
+        run: |
+          mkdir -p "$RUNNER_TEMP/convoweave-data"
+          chmod 0777 "$RUNNER_TEMP/convoweave-data"
+          docker run -d --rm \
+            --name convoweave-backend-preview-test \
+            -p 8788:8787 \
+            -v "$RUNNER_TEMP/convoweave-data:/data/convoweave" \
+            -e CONVOWEAVE_ENV=preview \
+            -e CONVOWEAVE_AUTH_MODE=development-token \
+            -e CONVOWEAVE_DEV_TOKEN=ci-preview-token \
+            -e CONVOWEAVE_PROCESSING_PROVIDER=deterministic \
+            -e CONVOWEAVE_STORAGE_MODE=filesystem \
+            -e CONVOWEAVE_AUDIO_RETENTION=delete-after-processing \
+            convoweave-backend:test
+          trap 'docker stop convoweave-backend-preview-test >/dev/null 2>&1 || true' EXIT
+          for attempt in $(seq 1 20); do
+            if curl --fail --silent http://127.0.0.1:8788/readyz >/dev/null; then break; fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8788/readyz | grep 'filesystem'

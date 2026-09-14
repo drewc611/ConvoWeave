@@ -16,6 +16,53 @@ test('development config is explicit and valid', () => {
   assert.equal(config.processingProvider, 'deterministic');
   assert.equal(config.port, 8787);
   assert.equal(config.openai, undefined);
+  assert.equal(config.storage.mode, 'memory');
+  assert.equal(config.storage.audioRetention, 'delete-after-processing');
+});
+
+test('preview defaults to durable filesystem storage and delete-after-processing retention', () => {
+  const config = loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'development-token',
+    CONVOWEAVE_DEV_TOKEN: 'preview-token',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+  });
+  assert.equal(config.storage.mode, 'filesystem');
+  assert.equal(config.storage.audioRetention, 'delete-after-processing');
+  assert.equal(config.storage.dataDir, '.convoweave/backend-data');
+});
+
+test('preview retention and storage path can be configured without source edits', () => {
+  const config = loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'development-token',
+    CONVOWEAVE_DEV_TOKEN: 'preview-token',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    CONVOWEAVE_STORAGE_MODE: 'filesystem',
+    CONVOWEAVE_DATA_DIR: '/tmp/convoweave-preview',
+    CONVOWEAVE_AUDIO_RETENTION: 'retain-preview',
+  });
+  assert.equal(config.storage.mode, 'filesystem');
+  assert.equal(config.storage.dataDir, '/tmp/convoweave-preview');
+  assert.equal(config.storage.audioRetention, 'retain-preview');
+});
+
+test('invalid storage and retention modes are rejected', () => {
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'development-token',
+    CONVOWEAVE_DEV_TOKEN: 'preview-token',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    CONVOWEAVE_STORAGE_MODE: 'magic-database',
+  }), /CONVOWEAVE_STORAGE_MODE/);
+
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_AUTH_MODE: 'development-token',
+    CONVOWEAVE_DEV_TOKEN: 'preview-token',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
+    CONVOWEAVE_AUDIO_RETENTION: 'keep-forever',
+  }), /CONVOWEAVE_AUDIO_RETENTION/);
 });
 
 test('development-token auth requires a token', () => {

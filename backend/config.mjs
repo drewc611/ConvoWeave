@@ -1,6 +1,8 @@
 const ENVIRONMENTS = new Set(['development', 'preview', 'production']);
 const AUTH_MODES = new Set(['development-token']);
 const PROCESSING_PROVIDERS = new Set(['deterministic', 'openai']);
+const STORAGE_MODES = new Set(['memory', 'filesystem']);
+const AUDIO_RETENTION_MODES = new Set(['delete-after-processing', 'retain-preview']);
 
 function parsePort(value) {
   const port = Number.parseInt(value ?? '8787', 10);
@@ -22,6 +24,29 @@ function normalizeOptionalUrl(value) {
   if (!trimmed) return undefined;
   const parsed = new URL(trimmed);
   return parsed.toString().replace(/\/$/, '');
+}
+
+function storageConfig(environment, env) {
+  const defaultMode = environment === 'preview' ? 'filesystem' : 'memory';
+  const mode = env.CONVOWEAVE_STORAGE_MODE?.trim() || defaultMode;
+  if (!STORAGE_MODES.has(mode)) throw new Error(`Unsupported CONVOWEAVE_STORAGE_MODE: ${mode}`);
+
+  const audioRetention = env.CONVOWEAVE_AUDIO_RETENTION?.trim() || 'delete-after-processing';
+  if (!AUDIO_RETENTION_MODES.has(audioRetention)) {
+    throw new Error(`Unsupported CONVOWEAVE_AUDIO_RETENTION: ${audioRetention}`);
+  }
+  if (environment === 'production' && audioRetention !== 'delete-after-processing') {
+    throw new Error('Production cannot retain raw audio through the preview retention mode.');
+  }
+  if (environment === 'production' && mode === 'memory') {
+    throw new Error('Production cannot use in-memory processing-session storage.');
+  }
+
+  return {
+    mode,
+    dataDir: env.CONVOWEAVE_DATA_DIR?.trim() || '.convoweave/backend-data',
+    audioRetention,
+  };
 }
 
 export function loadBackendConfig(env = process.env) {
@@ -71,6 +96,7 @@ export function loadBackendConfig(env = process.env) {
     host: env.HOST?.trim() || '127.0.0.1',
     port: parsePort(env.PORT),
     publicBaseUrl,
+    storage: storageConfig(environment, env),
     openai: processingProvider === 'openai' ? {
       apiKey: openaiApiKey,
       baseUrl: normalizeOptionalUrl(env.OPENAI_BASE_URL) ?? 'https://api.openai.com',
