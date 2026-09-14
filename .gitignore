@@ -9,6 +9,10 @@ web-build/
 !.env.example
 coverage/
 
+# Local ConvoWeave backend persistence and meeting data
+.convoweave/
+backend/.data/
+
 # Mobile signing and store credentials
 *.jks
 *.keystore
