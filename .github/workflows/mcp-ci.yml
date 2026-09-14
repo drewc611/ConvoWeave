@@ -7,6 +7,7 @@ on:
       - 'integrations/mcp/**'
       - 'integrations/chatgpt/**'
       - 'integrations/claude/**'
+      - 'render.yaml'
       - '.github/workflows/mcp-ci.yml'
       - '.github/workflows/publish-mcp-registry.yml'
   push:
@@ -15,6 +16,7 @@ on:
       - 'integrations/mcp/**'
       - 'integrations/chatgpt/**'
       - 'integrations/claude/**'
+      - 'render.yaml'
       - '.github/workflows/mcp-ci.yml'
       - '.github/workflows/publish-mcp-registry.yml'
 
@@ -51,9 +53,23 @@ jobs:
           for i in {1..20}; do
             if curl --fail --silent http://127.0.0.1:8790/healthz > /tmp/mcp-health.json; then
               cat /tmp/mcp-health.json
+              break
+            fi
+            sleep 1
+          done
+          curl --fail --silent http://127.0.0.1:8790/healthz >/dev/null || { cat /tmp/convoweave-mcp.log; exit 1; }
+      - name: Build and smoke MCP container
+        shell: bash
+        run: |
+          docker build -t convoweave-mcp:ci integrations/mcp
+          docker run --rm -d --name convoweave-mcp-ci -e PORT=8790 -p 18790:8790 convoweave-mcp:ci
+          trap 'docker rm -f convoweave-mcp-ci >/dev/null 2>&1 || true' EXIT
+          for i in {1..30}; do
+            if curl --fail --silent http://127.0.0.1:18790/healthz > /tmp/mcp-container-health.json; then
+              cat /tmp/mcp-container-health.json
               exit 0
             fi
             sleep 1
           done
-          cat /tmp/convoweave-mcp.log
+          docker logs convoweave-mcp-ci
           exit 1
