@@ -1,0 +1,17 @@
+services:
+  - type: web
+    name: convoweave-mcp
+    runtime: docker
+    plan: free
+    rootDir: integrations/mcp
+    dockerfilePath: ./Dockerfile
+    healthCheckPath: /healthz
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: HOST
+        value: 0.0.0.0
+      - key: CONVOWEAVE_MCP_AUTH_MODE
+        value: none
+      - key: CONVOWEAVE_ACCOUNT_STORE_MODE
+        value: memory
