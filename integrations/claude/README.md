@@ -1,15 +1,33 @@
 # Claude integration
 
-ConvoWeave uses the shared remote MCP service in `integrations/mcp`.
+[![MCP Integration CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml)
+[![Claude Connector](https://img.shields.io/badge/Claude%20Connector-submission%20prepared-D97757)](SUBMISSION.md)
+[![Claude Plugin](https://img.shields.io/badge/Claude%20Plugin-package%20ready-D97757)](.)
+[![MCP Registry](https://img.shields.io/badge/MCP%20Registry-publish%20ready-5C5CFF)](../mcp/server.registry.template.json)
+
+ConvoWeave uses the shared remote MCP service in `integrations/mcp` and is packaged as a Claude plugin at this directory root.
+
+## Plugin package
+
+- `.claude-plugin/plugin.json` defines the public plugin metadata.
+- `.mcp.json` connects the plugin to the production ConvoWeave remote MCP endpoint through `CONVOWEAVE_MCP_URL`.
+- `skills/convoweave-meeting-memory/SKILL.md` teaches Claude the source-backed ConvoWeave workflows.
+- `SUBMISSION.md` contains the Connector Directory and Plugin Directory reviewer packet.
+
+Validate before submission:
+
+```bash
+claude plugin validate integrations/claude
+```
 
 ## OAuth account connection
 
 1. Deploy the ConvoWeave MCP service to a public HTTPS endpoint reachable from Anthropic's cloud infrastructure.
-2. Configure `CONVOWEAVE_MCP_AUTH_MODE=oidc` plus `CONVOWEAVE_MCP_PUBLIC_BASE_URL`, `OIDC_ISSUER`, `OIDC_AUDIENCE`, and `OIDC_JWKS_URL`.
-3. Register the Claude OAuth client/redirect URI with that identity provider. For Team/Enterprise custom connectors, the owner can enter the MCP URL and OAuth client settings in connector administration.
-4. Grant only the scopes required by the connection: `convoweave.read` and, when write actions are intended, `convoweave.write`. Enable refresh/offline access when the identity provider and connector flow require persistent connectivity.
+2. Configure production OIDC, public-base URL, read/write scopes, issuer, client/audience validation and JWKS.
+3. Register the Claude OAuth redirect/client configuration with the production identity provider.
+4. Grant only the scopes required by the connection. Read tools require the configured read scope; mutating tools require the configured write scope.
 5. Add the remote `/mcp` URL as a custom connector, authenticate, then enable it for a test conversation.
-6. Validate read/write behavior with non-production data before wider organization rollout or directory submission.
+6. Validate read/write behavior with non-production data before directory submission.
 
 ## Account-backed tools
 
@@ -27,6 +45,6 @@ The service derives account identity exclusively from the verified access-token 
 
 Private Sidecar notes are not syncable and are not exposed by the account tools. Do not add them to connector test fixtures, logs, synced snapshots, or skill examples.
 
-## Connector-directory readiness
+## Directory status
 
-Before public or organization-wide rollout, deploy durable production account storage, complete privacy/retention/account-deletion controls, register production OAuth clients, verify consent for write/destructive tools, and complete Anthropic's current connector review or directory process. External publication remains an account-holder/owner action.
+The software package and reviewer packet are prepared. Final Connector Directory submission still requires a live public HTTPS MCP endpoint and an authorized Claude Team/Enterprise directory manager. Final Plugin Directory submission requires an authenticated Claude.ai or Anthropic Console account. Do not describe either listing as approved until Anthropic accepts it.
