@@ -62,10 +62,10 @@ jobs:
         shell: bash
         run: |
           docker build -t convoweave-mcp:ci integrations/mcp
-          docker run --rm -d --name convoweave-mcp-ci -e PORT=8790 -p 8790:8790 convoweave-mcp:ci
+          docker run --rm -d --name convoweave-mcp-ci -e PORT=8790 -p 18790:8790 convoweave-mcp:ci
           trap 'docker rm -f convoweave-mcp-ci >/dev/null 2>&1 || true' EXIT
           for i in {1..30}; do
-            if curl --fail --silent http://127.0.0.1:8790/healthz > /tmp/mcp-container-health.json; then
+            if curl --fail --silent http://127.0.0.1:18790/healthz > /tmp/mcp-container-health.json; then
               cat /tmp/mcp-container-health.json
               exit 0
             fi
