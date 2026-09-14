@@ -8,7 +8,7 @@ It is intentionally not a transcript-summary app. Raw evidence and generated int
 
 ## Stable product on `main`
 
-The current stable build is local-first and usable without a cloud AI provider:
+The stable product is local-first and usable without any cloud AI provider:
 
 - real on-device microphone capture with explicit permission and recording notice
 - pause, resume, stop, duration tracking and interruption handling
@@ -28,18 +28,39 @@ The current stable build is local-first and usable without a cloud AI provider:
 
 Remote processing exists behind a separate backend/client boundary but is not the shipping default.
 
-## Active platform work
+## Processing platform
 
-Issue #11 and branch `feat/processing-platform-v1` are building the next production-processing layer without destabilizing `main`:
+The provider-neutral processing platform is now part of `main` and includes:
 
 - explicit development / preview / production configuration
 - production startup safety guards
-- provider-neutral backend adapters
+- provider adapter boundaries
 - stable request IDs and API error contracts
 - liveness/readiness probes
 - containerized backend runtime
-- backend-specific CI
-- environment-safe mobile processing client selection
+- dedicated backend CI and live container smoke tests
+- environment-safe mobile processing-client selection
+
+Issue #11 records that completed platform slice.
+
+## Current development slice
+
+Issue #13 and `feat/openai-preview-provider-v1` add a real preview-only AI provider behind the existing backend contract. This does not change the local-first shipping default.
+
+The preview adapter currently targets:
+
+- `gpt-transcribe` for uploaded meeting-audio transcription
+- `gpt-5.6-luna` for strict schema-constrained structured-memory extraction
+- backend-only provider credentials
+- `store: false` on extraction responses
+- exact transcript-quote validation before provider output becomes a ConvoWeave proposal
+- human review before any generated proposal becomes durable meeting memory
+
+Contradiction generation remains excluded from this provider call because ConvoWeave requires both current and prior evidence for a durable contradiction.
+
+Normal CI uses mocked provider responses and requires no external API key. An operator-only live smoke command exists for non-sensitive preview test audio.
+
+See ADR 0002 for provider rationale, limitations, cost/privacy tradeoffs, and the replacement boundary.
 
 ## Development
 
@@ -61,6 +82,7 @@ GitHub Actions provide:
 - strict TypeScript validation
 - Vitest unit and repository restart-state tests
 - backend Node contract tests
+- backend provider adapter tests with mocked external HTTP
 - backend syntax/container/smoke validation when backend code changes
 - high-severity dependency audit
 - CodeQL JavaScript/TypeScript analysis
@@ -81,6 +103,7 @@ Read these before changing core behavior:
 - `docs/PRODUCT_STRATEGY.md`
 - `docs/BACKEND_API.md`
 - `docs/adr/0001-runtime-environments-and-provider-boundary.md`
+- `docs/adr/0002-openai-preview-processing-provider.md`
 - `docs/DEVICE_TEST_PLAN.md`
 - `docs/STORE_RELEASE.md`
 - `store/PRIVACY_POLICY.md`
@@ -101,13 +124,14 @@ Core invariants:
 
 The stable product keeps audio, reviews and persisted meeting state on device and does not automatically upload meeting audio.
 
-A remote provider boundary exists for controlled development and future production activation, but it requires explicit meeting-specific approval before audio can leave the device. Any distributed release that enables remote processing must update store privacy disclosures and the privacy policy before distribution.
+The preview remote-processing path still requires explicit meeting-specific approval before audio can leave the device. `store: false` on a provider request must not be treated as a guarantee of zero provider-side retention. Public distribution with remote processing requires a current provider data-control review plus matching App Store, Google Play and privacy-policy disclosures.
 
-## Release tracking
+## Release and engineering tracking
 
 - Issue #3: Apple Developer, App Store Connect, Google Play and EAS account-holder steps
 - Issue #5: physical iOS/Android device validation
-- Issue #11: production processing platform v1
+- Issue #11: completed production processing platform v1
+- Issue #13: preview AI processing provider v1
 
 Do not commit Apple credentials, App Store Connect keys, Google service-account JSON, Android keystores/passwords, Expo access tokens, provider secrets, recordings, transcripts or user meeting data.
 
