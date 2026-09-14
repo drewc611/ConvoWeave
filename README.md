@@ -1,10 +1,51 @@
 # ConvoWeave
 
+[![Main Stable](https://img.shields.io/badge/main-stable-success?style=for-the-badge)](https://github.com/drewc611/ConvoWeave/tree/main)
+[![Mobile CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml)
+[![Backend CI](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml)
+[![Security CI](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml)
+[![CodeQL](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml)
+[![License](https://img.shields.io/github/license/drewc611/ConvoWeave?style=flat-square)](https://github.com/drewc611/ConvoWeave/blob/main/LICENSE)
+[![Platform](https://img.shields.io/badge/platform-iOS%20%7C%20Android-0A84FF?style=flat-square)](#stable-product-on-main)
+[![Storage](https://img.shields.io/badge/storage-local--first-SQLite-6f42c1?style=flat-square)](#stable-product-on-main)
+[![Architecture](https://img.shields.io/badge/architecture-evidence--backed-memory-ff8c00?style=flat-square)](#architecture-and-product-docs)
+
 **The AI companion that remembers your meetings.**
 
 ConvoWeave is a mobile-first meeting memory and decision system. It preserves what changed across conversations, who committed to what, why decisions were made, which assumptions remain unverified, and where current statements conflict with earlier evidence.
 
 It is intentionally not a transcript-summary app. Raw evidence and generated interpretation remain separate, and important memory keeps source proof.
+
+## Product fit and flow
+
+```mermaid
+flowchart LR
+    A[Meeting Conversations] --> B[ConvoWeave]
+    B --> C[Source-Proof Evidence]
+    B --> D[Human-Reviewed Memory]
+    C --> E[Decision Ledger]
+    C --> F[Commitment Radar]
+    C --> G[Assumption Register]
+    D --> E
+    D --> F
+    D --> G
+    E --> H[Team Alignment]
+    F --> H
+    G --> H
+```
+
+```mermaid
+flowchart TD
+    A[Record Meeting On Device] --> B[Local Draft + Checkpoints]
+    B --> C[Manual Review + Confirmations]
+    C --> D[Deterministic What Changed]
+    D --> E[Durable Local Memory]
+    C --> F{Remote Processing Opt-In?}
+    F -- No --> E
+    F -- Yes --> G[Backend Provider Adapter]
+    G --> H[Schema-Constrained Proposals]
+    H --> C
+```
 
 ## Stable product on `main`
 
