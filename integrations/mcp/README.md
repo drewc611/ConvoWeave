@@ -1,46 +1,85 @@
-# ConvoWeave MCP integration
+# ConvoWeave remote MCP integration
 
-This package exposes vendor-neutral ConvoWeave meeting-memory workflows through remote Model Context Protocol (MCP).
+The ConvoWeave MCP service is the shared integration boundary for ChatGPT and Claude.
 
-## Endpoint
+## Modes
 
-Run locally:
+### Stateless mode
 
-```bash
-cd integrations/mcp
-npm install
-npm test
-npm start
-```
+`CONVOWEAVE_MCP_AUTH_MODE=none`
 
-- MCP: `http://localhost:8790/mcp`
-- Health: `http://localhost:8790/healthz`
+Only portable source-backed tools are available. No account data is exposed.
 
-For hosted use, expose `/mcp` over HTTPS. Streamable HTTP is the target transport. The current MCP SDK handler also provides the SDK's stateless legacy fallback for 2025-era clients.
+### Account-backed development mode
 
-## Current tools
+Set:
 
-- `convoweave_capabilities`
-- `convoweave_structure_meeting`
-- `convoweave_prepare_brief`
-- `convoweave_explain_changes`
+- `CONVOWEAVE_MCP_AUTH_MODE=development-token`
+- `CONVOWEAVE_MCP_DEV_TOKEN=<local test token>`
+- `CONVOWEAVE_MCP_PUBLIC_BASE_URL=https://your-mcp-host.example`
+- `CONVOWEAVE_ACCOUNT_STORE_MODE=memory|filesystem`
+- `CONVOWEAVE_ACCOUNT_DATA_DIR=.convoweave/account-data`
 
-All v1 tools are stateless and read-only from the service's perspective. They operate only on content explicitly supplied by the MCP host. They do not read the user's ConvoWeave mobile database and do not persist meeting content server-side.
+This is for local/preview validation only.
 
-`convoweave_structure_meeting` enforces source proof: every proposed decision, commitment, and assumption must include an evidence quote found in the supplied notes. Returned memory remains `proposed` until a human confirms it.
+### OAuth/OIDC mode
 
-## Authentication
+Set:
 
-The v1 stateless endpoint can run without account authentication because it has no account data or durable write actions. Before adding synced ConvoWeave account tools, require OAuth/OIDC, user-scoped authorization, audit logs, deletion/retention controls, and separate read/write scopes.
+- `CONVOWEAVE_MCP_AUTH_MODE=oidc`
+- `CONVOWEAVE_MCP_PUBLIC_BASE_URL=https://your-mcp-host.example`
+- `OIDC_ISSUER=https://identity.example`
+- `OIDC_AUDIENCE=<resource audience>`
+- `OIDC_JWKS_URL=https://identity.example/.../jwks.json`
+- optional `OIDC_ALLOWED_ALGORITHMS`, default `RS256`
 
-Never put API keys, provider keys, access tokens, transcripts, recordings, or user data in the ChatGPT/Claude skill package.
+The service publishes OAuth protected-resource metadata at:
 
-## Platform adapters
+- `/.well-known/oauth-protected-resource`
+- `/.well-known/oauth-protected-resource/mcp`
 
-The same remote MCP endpoint is intended for:
+Advertised scopes:
 
-- ChatGPT Plugins/Apps/Skills
-- Claude Connectors and Agent Skills
-- other MCP-compatible hosts
+- `convoweave.read`
+- `convoweave.write`
+- `offline_access` for hosts/providers that support refresh tokens
 
-Platform-specific guidance lives in `../chatgpt` and `../claude`.
+The authorization server itself remains the configured external OIDC provider. ConvoWeave validates its access tokens and never stores passwords.
+
+## Account-backed tools
+
+Authenticated connections receive:
+
+- `convoweave_list_threads`
+- `convoweave_get_thread`
+- `convoweave_upsert_thread`
+- `convoweave_delete_thread`
+- `convoweave_prepare_account_brief`
+
+Account data is isolated by the verified OIDC `issuer + subject`. Tool inputs cannot choose another account identifier.
+
+## Mobile sync API
+
+The same service exposes:
+
+- `GET /v1/account/threads`
+- `GET /v1/account/threads/:id`
+- `PUT /v1/account/threads/:id`
+- `DELETE /v1/account/threads/:id`
+
+`src/services/accountSyncClient.ts` is the mobile client boundary. It requires a bearer-token provider and does not store credentials itself.
+
+Private Sidecar notes are intentionally excluded from the sync contract and are rejected if included in a raw REST payload.
+
+## Deployment boundary
+
+Production/marketplace deployment still requires:
+
+1. A public HTTPS MCP endpoint.
+2. An OIDC/OAuth provider configured to issue access tokens for the ConvoWeave resource/audience.
+3. Registered ChatGPT and Claude OAuth clients/redirect URIs.
+4. Refresh-token/offline access enabled when the host requires persistent connectivity.
+5. A durable production account store replacing or backing the filesystem preview store.
+6. Privacy policy, retention policy, account deletion path, and marketplace review.
+
+Do not commit OAuth client secrets, access tokens, refresh tokens, provider API keys, meeting content, or account data to this repository.
