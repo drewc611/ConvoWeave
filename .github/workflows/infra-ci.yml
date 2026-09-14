@@ -32,7 +32,7 @@ jobs:
           terraform_wrapper: false
 
       - name: Terraform format
-        run: terraform -chdir=infra/aws fmt -check -recursive
+        run: terraform -chdir=infra/aws fmt -check -diff -recursive
 
       - name: Terraform init without backend
         run: terraform -chdir=infra/aws init -backend=false
