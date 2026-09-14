@@ -1,0 +1,23 @@
+services:
+  convoweave-backend:
+    image: ${CONVOWEAVE_BACKEND_IMAGE:-ghcr.io/drewc611/convoweave-backend:main}
+    restart: unless-stopped
+    ports:
+      - "${CONVOWEAVE_PREVIEW_PORT:-8787}:8787"
+    env_file:
+      - .env.preview
+    environment:
+      HOST: 0.0.0.0
+      PORT: 8787
+      CONVOWEAVE_DATA_DIR: /data/convoweave
+    volumes:
+      - convoweave-preview-data:/data/convoweave
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:8787/healthz').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 10s
+
+volumes:
+  convoweave-preview-data:
