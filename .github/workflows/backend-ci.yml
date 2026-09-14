@@ -36,7 +36,7 @@ jobs:
           node-version: 24
 
       - name: Install backend dependencies
-        run: npm --prefix backend install --ignore-scripts --no-audit --no-fund --package-lock=false
+        run: npm --prefix backend install --ignore-scripts --no-audit --no-fund
 
       - name: Syntax checks
         run: |
