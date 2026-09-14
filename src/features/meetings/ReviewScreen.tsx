@@ -34,7 +34,7 @@ function parseOptionalDate(value: string): string | undefined {
   return Number.isNaN(parsed.getTime()) ? undefined : parsed.toISOString();
 }
 
-function transcriptFor(meeting: Meeting, notes: string): Transcript {
+function transcriptFor(meeting: Meeting, text: string): Transcript {
   return {
     meetingId: meeting.id,
     segments: [{
@@ -43,7 +43,7 @@ function transcriptFor(meeting: Meeting, notes: string): Transcript {
       speakerId: 'manual-entry',
       startMs: 0,
       endMs: meeting.durationMs,
-      text: notes.trim() || 'Manual structured meeting memory.',
+      text: text.trim() || 'Manual structured meeting memory.',
     }],
   };
 }
@@ -63,6 +63,27 @@ function isManualEvidence(evidence: EvidenceRef[]): boolean {
   return evidence.length === 0 || evidence.every((item) => item.speakerId === 'manual-entry');
 }
 
+function hasRemoteEvidence(transcript: Transcript | undefined): transcript is Transcript {
+  return Boolean(transcript?.segments.some((segment) => segment.speakerId !== 'manual-entry'));
+}
+
+function notesFromTranscript(transcript: Transcript | undefined): string {
+  if (!transcript) return '';
+  const manual = [...transcript.segments].reverse().find((segment) => segment.speakerId === 'manual-entry');
+  if (manual) return manual.text;
+  return transcript.segments.map((segment) => segment.text).join('\n');
+}
+
+function manualText(notes: string, proposals: DraftProposal[]): string {
+  const parts = [notes.trim()];
+  for (const proposal of proposals) {
+    if (!isManualEvidence(proposal.evidence)) continue;
+    const statement = proposal.statement.trim();
+    if (statement && !parts.some((part) => part.includes(statement))) parts.push(statement);
+  }
+  return parts.filter(Boolean).join('\n');
+}
+
 export function ReviewScreen({ meeting, providers: _providers, initialReview, priorDecisions = [], onProgress, onDone }: ReviewScreenProps) {
   const runtimeConfig = useMemo(() => {
     try {
@@ -72,8 +93,9 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
     }
   }, []);
   const remotePreviewEnabled = runtimeConfig?.environment === 'preview' && runtimeConfig.processingMode === 'remote';
-  const initialNotes = initialReview?.transcript.segments.map((segment) => segment.text).join('\n') ?? meeting.transcript?.segments.map((segment) => segment.text).join('\n') ?? '';
-  const [notes, setNotes] = useState(initialNotes);
+  const persistedTranscript = initialReview?.transcript ?? meeting.transcript;
+  const [sourceTranscript, setSourceTranscript] = useState<Transcript | null>(hasRemoteEvidence(persistedTranscript) ? persistedTranscript : null);
+  const [notes, setNotes] = useState(notesFromTranscript(persistedTranscript));
   const [proposals, setProposals] = useState<DraftProposal[]>(initialReview?.proposals ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,10 +103,26 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
   const [remoteBusy, setRemoteBusy] = useState(false);
   const [remoteStatus, setRemoteStatus] = useState<string | null>(null);
 
+  const transcriptForReview = (nextNotes: string, nextProposals: DraftProposal[]): Transcript => {
+    const nextManualText = manualText(nextNotes, nextProposals);
+    if (!sourceTranscript) return transcriptFor(meeting, nextManualText);
+
+    const sourceSegments = sourceTranscript.segments.filter((segment) => segment.speakerId !== 'manual-entry');
+    const sourceText = sourceSegments.map((segment) => segment.text).join('\n').trim();
+    const hasManualProposal = nextProposals.some((proposal) => isManualEvidence(proposal.evidence));
+    const needsManualSegment = hasManualProposal || nextNotes.trim() !== sourceText;
+    return {
+      meetingId: meeting.id,
+      segments: needsManualSegment
+        ? [...sourceSegments, transcriptFor(meeting, nextManualText).segments[0]]
+        : sourceSegments,
+    };
+  };
+
   const buildReview = (nextNotes = notes, nextProposals = proposals): MeetingReview => ({
     id: meeting.id,
     meetingId: meeting.id,
-    transcript: transcriptFor(meeting, nextNotes),
+    transcript: transcriptForReview(nextNotes, nextProposals),
     proposals: nextProposals.map(({ dueInput: _dueInput, reviewInput: _reviewInput, ...proposal }) => proposal),
     updatedAt: new Date().toISOString(),
   });
@@ -139,9 +177,10 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
       const review = await buildPreviewRemoteReview(runtimeConfig, meeting, previewAccessToken);
       const nextNotes = review.transcript.segments.map((segment) => segment.text).join('\n');
       const nextProposals: DraftProposal[] = review.proposals.map((proposal) => ({ ...proposal }));
+      setSourceTranscript(review.transcript);
       setNotes(nextNotes);
       setProposals(nextProposals);
-      await onProgress({ ...review, proposals: nextProposals });
+      await onProgress(review);
       setRemoteStatus('Remote draft loaded. Review the transcript and explicitly accept, reject, or edit each proposed memory item.');
     } catch (cause) {
       setError(`${describeRemoteProcessingError(cause)} Manual review is still available below.`);
