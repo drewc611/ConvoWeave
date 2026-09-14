@@ -111,10 +111,11 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
     const sourceText = sourceSegments.map((segment) => segment.text).join('\n').trim();
     const hasManualProposal = nextProposals.some((proposal) => isManualEvidence(proposal.evidence));
     const needsManualSegment = hasManualProposal || nextNotes.trim() !== sourceText;
+    const manualSegment = transcriptFor(meeting, nextManualText).segments[0];
     return {
       meetingId: meeting.id,
-      segments: needsManualSegment
-        ? [...sourceSegments, transcriptFor(meeting, nextManualText).segments[0]]
+      segments: needsManualSegment && manualSegment
+        ? [...sourceSegments, manualSegment]
         : sourceSegments,
     };
   };
