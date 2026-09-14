@@ -49,7 +49,7 @@ export async function buildPreviewRemoteReview(
   );
 
   const transcript = await providers.transcription.transcribe(meeting);
-  const proposals = await providers.extraction.extract({ ...meeting, transcript });
+  const proposals = await providers.extraction.extract(meeting, transcript);
   return {
     id: meeting.id,
     meetingId: meeting.id,
