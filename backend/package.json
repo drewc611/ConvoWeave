@@ -1,11 +1,12 @@
 {
-  "name": "convoweave-backend-reference",
-  "version": "0.2.0",
+  "name": "convoweave-processing-backend",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test config.node-test.mjs server.node-test.mjs"
+    "test": "node --test config.node-test.mjs providers/openai.node-test.mjs server.node-test.mjs",
+    "smoke:openai": "node openai-live-smoke.mjs"
   },
   "engines": {
     "node": ">=24"
