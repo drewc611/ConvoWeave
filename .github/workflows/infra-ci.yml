@@ -1,0 +1,41 @@
+name: Infrastructure CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'infra/aws/**'
+      - '.github/workflows/infra-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'infra/aws/**'
+      - '.github/workflows/infra-ci.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: infra-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  terraform:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v4
+        with:
+          terraform_wrapper: false
+
+      - name: Terraform format
+        run: terraform -chdir=infra/aws fmt -check -diff -recursive
+
+      - name: Terraform init without backend
+        run: terraform -chdir=infra/aws init -backend=false
+
+      - name: Terraform validate
+        run: terraform -chdir=infra/aws validate

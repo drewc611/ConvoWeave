@@ -6,12 +6,12 @@ function clone(value) {
   return value === undefined ? undefined : structuredClone(value);
 }
 
-function principalKey(principal) {
+export function accountPrincipalKey(principal) {
   if (!principal?.subject || !principal?.issuer) throw new Error('principal-required');
   return createHash('sha256').update(`${principal.issuer}\0${principal.subject}`).digest('hex');
 }
 
-function normalizedSnapshot(snapshot) {
+export function normalizeAccountSnapshot(snapshot) {
   if (!snapshot?.thread?.id || typeof snapshot.thread.id !== 'string') throw new Error('thread-id-required');
   const now = new Date().toISOString();
   return {
@@ -29,7 +29,7 @@ function normalizedSnapshot(snapshot) {
   };
 }
 
-function summary(snapshot) {
+export function summarizeAccountThread(snapshot) {
   return {
     id: snapshot.thread.id,
     title: snapshot.thread.title,
@@ -46,7 +46,7 @@ function summary(snapshot) {
 export function createInMemoryAccountStore() {
   const accounts = new Map();
   const accountFor = (principal) => {
-    const key = principalKey(principal);
+    const key = accountPrincipalKey(principal);
     let account = accounts.get(key);
     if (!account) {
       account = new Map();
@@ -60,14 +60,14 @@ export function createInMemoryAccountStore() {
     async ready() { return true; },
     async listThreads(principal) {
       return [...accountFor(principal).values()]
-        .map(summary)
+        .map(summarizeAccountThread)
         .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
     },
     async getThread(principal, threadId) {
       return clone(accountFor(principal).get(threadId) ?? null);
     },
     async putThread(principal, snapshot) {
-      const normalized = normalizedSnapshot(snapshot);
+      const normalized = normalizeAccountSnapshot(snapshot);
       accountFor(principal).set(normalized.thread.id, clone(normalized));
       return clone(normalized);
     },
@@ -97,7 +97,7 @@ async function atomicWrite(file, payload) {
 
 export function createFileAccountStore(rootDirectory) {
   const root = resolve(rootDirectory);
-  const fileFor = (principal) => join(root, `${principalKey(principal)}.json`);
+  const fileFor = (principal) => join(root, `${accountPrincipalKey(principal)}.json`);
   let writeChain = Promise.resolve();
 
   async function mutate(principal, operation) {
@@ -123,7 +123,7 @@ export function createFileAccountStore(rootDirectory) {
       await mkdir(root, { recursive: true, mode: 0o700 });
       const account = await readAccount(fileFor(principal));
       return Object.values(account.threads)
-        .map(summary)
+        .map(summarizeAccountThread)
         .sort((a, b) => String(b.updatedAt ?? '').localeCompare(String(a.updatedAt ?? '')));
     },
     async getThread(principal, threadId) {
@@ -133,7 +133,7 @@ export function createFileAccountStore(rootDirectory) {
     },
     async putThread(principal, snapshot) {
       return mutate(principal, (account) => {
-        const normalized = normalizedSnapshot(snapshot);
+        const normalized = normalizeAccountSnapshot(snapshot);
         account.threads[normalized.thread.id] = normalized;
         return clone(normalized);
       });

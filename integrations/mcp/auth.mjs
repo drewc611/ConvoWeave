@@ -1,7 +1,7 @@
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const AUTH_MODES = new Set(['none', 'development-token', 'oidc']);
-const DEFAULT_SCOPES = ['convoweave.read', 'convoweave.write'];
+const AUDIENCE_CLAIMS = new Set(['aud', 'client_id']);
 
 function normalizeUrl(value) {
   const trimmed = value?.trim();
@@ -15,6 +15,13 @@ function scopesFromPayload(payload) {
   return [];
 }
 
+function configuredScopes(env) {
+  const read = env.CONVOWEAVE_READ_SCOPE?.trim() || 'convoweave.read';
+  const write = env.CONVOWEAVE_WRITE_SCOPE?.trim() || 'convoweave.write';
+  if (!read || !write || read === write) throw new Error('ConvoWeave read/write OAuth scopes must be distinct non-empty values.');
+  return { read, write };
+}
+
 export function loadMcpAuthConfig(env = process.env) {
   const mode = env.CONVOWEAVE_MCP_AUTH_MODE?.trim() || 'none';
   if (!AUTH_MODES.has(mode)) throw new Error(`Unsupported CONVOWEAVE_MCP_AUTH_MODE: ${mode}`);
@@ -22,21 +29,34 @@ export function loadMcpAuthConfig(env = process.env) {
   const resourceUrl = publicBaseUrl ? `${publicBaseUrl}/mcp` : undefined;
   const dataDir = env.CONVOWEAVE_ACCOUNT_DATA_DIR?.trim() || '.convoweave/account-data';
   const accountStoreMode = env.CONVOWEAVE_ACCOUNT_STORE_MODE?.trim() || 'filesystem';
-  if (!['memory', 'filesystem'].includes(accountStoreMode)) throw new Error(`Unsupported CONVOWEAVE_ACCOUNT_STORE_MODE: ${accountStoreMode}`);
+  if (!['memory', 'filesystem', 'aws'].includes(accountStoreMode)) throw new Error(`Unsupported CONVOWEAVE_ACCOUNT_STORE_MODE: ${accountStoreMode}`);
+  const scopeNames = configuredScopes(env);
+  const scopes = [scopeNames.read, scopeNames.write];
 
-  if (mode === 'none') return { mode, publicBaseUrl, resourceUrl, dataDir, accountStoreMode, scopes: DEFAULT_SCOPES };
+  const storage = accountStoreMode === 'aws' ? {
+    tableName: env.CONVOWEAVE_ACCOUNT_TABLE?.trim(),
+    bucketName: env.CONVOWEAVE_ACCOUNT_BUCKET?.trim(),
+    region: env.AWS_REGION?.trim() || env.AWS_DEFAULT_REGION?.trim(),
+  } : undefined;
+  if (accountStoreMode === 'aws' && (!storage?.tableName || !storage?.bucketName)) {
+    throw new Error('CONVOWEAVE_ACCOUNT_TABLE and CONVOWEAVE_ACCOUNT_BUCKET are required for aws account storage.');
+  }
+
+  if (mode === 'none') return { mode, publicBaseUrl, resourceUrl, dataDir, accountStoreMode, storage, scopes, scopeNames };
   if (!publicBaseUrl) throw new Error('CONVOWEAVE_MCP_PUBLIC_BASE_URL is required when MCP authentication is enabled.');
 
   if (mode === 'development-token') {
     const token = env.CONVOWEAVE_MCP_DEV_TOKEN?.trim();
     if (!token) throw new Error('CONVOWEAVE_MCP_DEV_TOKEN is required for development-token auth.');
-    return { mode, publicBaseUrl, resourceUrl, dataDir, accountStoreMode, devToken: token, scopes: DEFAULT_SCOPES };
+    return { mode, publicBaseUrl, resourceUrl, dataDir, accountStoreMode, storage, devToken: token, scopes, scopeNames };
   }
 
   const issuer = normalizeUrl(env.OIDC_ISSUER);
   const audience = env.OIDC_AUDIENCE?.trim();
   const jwksUrl = normalizeUrl(env.OIDC_JWKS_URL);
+  const audienceClaim = env.OIDC_AUDIENCE_CLAIM?.trim() || 'aud';
   if (!issuer || !audience || !jwksUrl) throw new Error('OIDC_ISSUER, OIDC_AUDIENCE, and OIDC_JWKS_URL are required for MCP OIDC auth.');
+  if (!AUDIENCE_CLAIMS.has(audienceClaim)) throw new Error(`Unsupported OIDC_AUDIENCE_CLAIM: ${audienceClaim}`);
   const allowedAlgorithms = (env.OIDC_ALLOWED_ALGORITHMS?.trim() || 'RS256').split(',').map((item) => item.trim()).filter(Boolean);
   return {
     mode,
@@ -44,11 +64,14 @@ export function loadMcpAuthConfig(env = process.env) {
     resourceUrl,
     dataDir,
     accountStoreMode,
+    storage,
     issuer,
     audience,
+    audienceClaim,
     jwksUrl,
     allowedAlgorithms,
-    scopes: DEFAULT_SCOPES,
+    scopes,
+    scopeNames,
   };
 }
 
@@ -80,15 +103,17 @@ export function createMcpAuthVerifier(config, { jwks } = {}) {
     async verify(token) {
       if (!token) return null;
       try {
-        const { payload, protectedHeader } = await jwtVerify(token, keySet, {
+        const verifyOptions = {
           issuer: config.issuer,
-          audience: config.audience,
           algorithms: config.allowedAlgorithms,
           clockTolerance: 5,
-        });
+          ...(config.audienceClaim === 'aud' ? { audience: config.audience } : {}),
+        };
+        const { payload, protectedHeader } = await jwtVerify(token, keySet, verifyOptions);
         if (typeof payload.sub !== 'string' || !payload.sub.trim()) return null;
         if (typeof payload.exp !== 'number') return null;
         if (!protectedHeader.alg || !config.allowedAlgorithms.includes(protectedHeader.alg)) return null;
+        if (config.audienceClaim === 'client_id' && payload.client_id !== config.audience) return null;
         const clientId = typeof payload.azp === 'string'
           ? payload.azp
           : typeof payload.client_id === 'string'
@@ -124,7 +149,7 @@ export function oauthProtectedResourceMetadata(config) {
   return {
     resource: config.resourceUrl,
     authorization_servers: [config.issuer],
-    scopes_supported: ['convoweave.read', 'convoweave.write', 'offline_access'],
+    scopes_supported: [...config.scopes],
     bearer_methods_supported: ['header'],
     resource_name: 'ConvoWeave',
   };

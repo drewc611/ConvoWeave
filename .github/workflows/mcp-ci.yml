@@ -8,6 +8,7 @@ on:
       - 'integrations/chatgpt/**'
       - 'integrations/claude/**'
       - '.github/workflows/mcp-ci.yml'
+      - '.github/workflows/publish-mcp-registry.yml'
   push:
     branches: [main]
     paths:
@@ -15,6 +16,7 @@ on:
       - 'integrations/chatgpt/**'
       - 'integrations/claude/**'
       - '.github/workflows/mcp-ci.yml'
+      - '.github/workflows/publish-mcp-registry.yml'
 
 permissions:
   contents: read
@@ -36,6 +38,10 @@ jobs:
         run: npm --prefix integrations/mcp test
       - name: Dependency audit
         run: npm --prefix integrations/mcp audit --audit-level=high
+      - name: Validate Claude plugin package
+        run: |
+          npm install --global @anthropic-ai/claude-code
+          claude plugin validate integrations/claude
       - name: Smoke remote MCP service
         shell: bash
         run: |

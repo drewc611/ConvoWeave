@@ -48,12 +48,12 @@ function requireScope(response, authInfo, scope, challenge) {
   return false;
 }
 
-export async function handleAccountApi({ request, response, url, authInfo, accountStore, challenge }) {
+export async function handleAccountApi({ request, response, url, authInfo, accountStore, challenge, scopeNames = { read: 'convoweave.read', write: 'convoweave.write' } }) {
   if (!url.pathname.startsWith('/v1/account/')) return false;
   const principal = accountPrincipalFromAuthInfo(authInfo);
 
   if (request.method === 'GET' && url.pathname === '/v1/account/threads') {
-    if (!requireScope(response, authInfo, 'convoweave.read', challenge)) return true;
+    if (!requireScope(response, authInfo, scopeNames.read, challenge)) return true;
     json(response, 200, { threads: await accountStore.listThreads(principal) });
     return true;
   }
@@ -66,7 +66,7 @@ export async function handleAccountApi({ request, response, url, authInfo, accou
     }
 
     if (request.method === 'GET') {
-      if (!requireScope(response, authInfo, 'convoweave.read', challenge)) return true;
+      if (!requireScope(response, authInfo, scopeNames.read, challenge)) return true;
       const snapshot = await accountStore.getThread(principal, threadId);
       if (!snapshot) {
         json(response, 404, { error: { code: 'thread-not-found', message: 'Thread not found.' } });
@@ -77,7 +77,7 @@ export async function handleAccountApi({ request, response, url, authInfo, accou
     }
 
     if (request.method === 'PUT') {
-      if (!requireScope(response, authInfo, 'convoweave.write', challenge)) return true;
+      if (!requireScope(response, authInfo, scopeNames.write, challenge)) return true;
       let input;
       try { input = await readJson(request); }
       catch (error) {
@@ -100,7 +100,7 @@ export async function handleAccountApi({ request, response, url, authInfo, accou
     }
 
     if (request.method === 'DELETE') {
-      if (!requireScope(response, authInfo, 'convoweave.write', challenge)) return true;
+      if (!requireScope(response, authInfo, scopeNames.write, challenge)) return true;
       const deleted = await accountStore.deleteThread(principal, threadId);
       if (!deleted) {
         json(response, 404, { error: { code: 'thread-not-found', message: 'Thread not found.' } });

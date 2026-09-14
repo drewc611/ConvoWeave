@@ -17,17 +17,27 @@ test('development auth produces scoped principal AuthInfo', async () => {
   assert.equal(await verifier.verify('wrong'), null);
 });
 
-test('OIDC protected resource metadata advertises scopes and issuer', () => {
+test('OIDC protected resource metadata advertises configured resource scopes and issuer', () => {
   const config = loadMcpAuthConfig({
     CONVOWEAVE_MCP_AUTH_MODE: 'oidc',
     CONVOWEAVE_MCP_PUBLIC_BASE_URL: 'https://mcp.example.test',
+    CONVOWEAVE_READ_SCOPE: 'convoweave/read',
+    CONVOWEAVE_WRITE_SCOPE: 'convoweave/write',
     OIDC_ISSUER: 'https://identity.example.test',
-    OIDC_AUDIENCE: 'convoweave-mcp',
+    OIDC_AUDIENCE: 'cognito-public-client',
+    OIDC_AUDIENCE_CLAIM: 'client_id',
     OIDC_JWKS_URL: 'https://identity.example.test/.well-known/jwks.json',
   });
   const metadata = oauthProtectedResourceMetadata(config);
   assert.equal(metadata.resource, 'https://mcp.example.test/mcp');
   assert.deepEqual(metadata.authorization_servers, ['https://identity.example.test']);
-  assert.ok(metadata.scopes_supported.includes('offline_access'));
+  assert.deepEqual(metadata.scopes_supported, ['convoweave/read', 'convoweave/write']);
+  assert.equal(config.audienceClaim, 'client_id');
   assert.match(bearerChallenge(config, { error: 'invalid_token' }), /resource_metadata=/);
+});
+
+test('AWS account-store config fails closed without required resource names', () => {
+  assert.throws(() => loadMcpAuthConfig({
+    CONVOWEAVE_ACCOUNT_STORE_MODE: 'aws',
+  }), /CONVOWEAVE_ACCOUNT_TABLE/);
 });

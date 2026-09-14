@@ -1,0 +1,19 @@
+aws_region             = "us-east-1"
+environment            = "production"
+app_name               = "convoweave"
+cognito_domain_prefix  = "replace-with-unique-convoweave-domain"
+
+# Add the approved redirect URIs for the ConvoWeave mobile client and
+# the ChatGPT/Claude OAuth clients when those platforms provide them.
+oauth_callback_urls = [
+  "https://example.com/oauth/callback"
+]
+
+oauth_logout_urls = [
+  "https://example.com/logout"
+]
+
+# Bootstrap with this empty. After pushing the first image to the ECR output,
+# set the immutable image tag/digest and the canonical public service origin.
+container_image_identifier = ""
+public_base_url            = ""

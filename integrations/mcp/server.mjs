@@ -4,6 +4,7 @@ import { toNodeHandler } from '@modelcontextprotocol/node';
 import * as z from 'zod/v4';
 import { handleAccountApi } from './accountApi.mjs';
 import { createFileAccountStore, createInMemoryAccountStore } from './accountStore.mjs';
+import { createAwsAccountStore } from './awsAccountStore.mjs';
 import { createAccountToolHandlers } from './accountTools.mjs';
 import {
   bearerChallenge,
@@ -73,13 +74,20 @@ function toolResult(payload) {
 }
 
 function createAccountStore(config) {
-  return config.accountStoreMode === 'memory'
-    ? createInMemoryAccountStore()
-    : createFileAccountStore(config.dataDir);
+  if (config.accountStoreMode === 'memory') return createInMemoryAccountStore();
+  if (config.accountStoreMode === 'filesystem') return createFileAccountStore(config.dataDir);
+  if (config.accountStoreMode === 'aws') {
+    return createAwsAccountStore({
+      tableName: config.storage.tableName,
+      bucketName: config.storage.bucketName,
+      region: config.storage.region,
+    });
+  }
+  throw new Error(`Unsupported account store mode: ${config.accountStoreMode}`);
 }
 
-export function createConvoWeaveMcpServer({ authInfo, accountStore = createInMemoryAccountStore() } = {}) {
-  const server = new McpServer({ name: 'convoweave', version: '1.1.0' });
+export function createConvoWeaveMcpServer({ authInfo, accountStore = createInMemoryAccountStore(), scopeNames } = {}) {
+  const server = new McpServer({ name: 'convoweave', version: '1.2.0' });
 
   server.registerTool('convoweave_capabilities', {
     title: 'ConvoWeave capabilities',
@@ -122,39 +130,39 @@ export function createConvoWeaveMcpServer({ authInfo, accountStore = createInMem
     annotations: { readOnlyHint: true, idempotentHint: true, destructiveHint: false },
   }, async (input) => toolResult(explainChanges(input)));
 
-  const account = createAccountToolHandlers({ authInfo, accountStore });
+  const account = createAccountToolHandlers({ authInfo, accountStore, scopeNames });
   if (account) {
     server.registerTool('convoweave_list_threads', {
       title: 'List my ConvoWeave threads',
-      description: 'List the authenticated user’s synced ConvoWeave threads. Requires convoweave.read.',
+      description: 'List the authenticated user’s synced ConvoWeave threads. Requires the configured read scope.',
       inputSchema: z.object({}),
       annotations: { readOnlyHint: true, idempotentHint: true, destructiveHint: false },
     }, async () => toolResult(await account.listThreads()));
 
     server.registerTool('convoweave_get_thread', {
       title: 'Read a ConvoWeave thread',
-      description: 'Read one authenticated user thread with decisions, commitments, assumptions, and meeting summaries. Private Sidecar notes are never included. Requires convoweave.read.',
+      description: 'Read one authenticated user thread with decisions, commitments, assumptions, and meeting summaries. Private Sidecar notes are never included.',
       inputSchema: z.object({ threadId: z.string().min(1).max(500) }),
       annotations: { readOnlyHint: true, idempotentHint: true, destructiveHint: false },
     }, async (input) => toolResult(await account.getThread(input)));
 
     server.registerTool('convoweave_upsert_thread', {
       title: 'Sync a ConvoWeave thread',
-      description: 'Create or replace one authenticated user thread snapshot. Private Sidecar notes are not accepted. Requires convoweave.write.',
+      description: 'Create or replace one authenticated user thread snapshot. Private Sidecar notes are not accepted. Requires the configured write scope.',
       inputSchema: z.object({ snapshot: accountSnapshot }),
       annotations: { readOnlyHint: false, idempotentHint: true, destructiveHint: false },
     }, async (input) => toolResult(await account.upsertThread(input)));
 
     server.registerTool('convoweave_delete_thread', {
       title: 'Delete a synced ConvoWeave thread',
-      description: 'Delete one authenticated user thread from cloud sync. Requires convoweave.write.',
+      description: 'Delete one authenticated user thread from cloud sync. Requires the configured write scope.',
       inputSchema: z.object({ threadId: z.string().min(1).max(500) }),
       annotations: { readOnlyHint: false, idempotentHint: true, destructiveHint: true },
     }, async (input) => toolResult(await account.deleteThread(input)));
 
     server.registerTool('convoweave_prepare_account_brief', {
       title: 'Prepare a brief from my synced thread',
-      description: 'Build a deterministic pre-meeting brief from the authenticated user’s synced thread state. Requires convoweave.read.',
+      description: 'Build a deterministic pre-meeting brief from the authenticated user’s synced thread state. Requires the configured read scope.',
       inputSchema: z.object({ threadId: z.string().min(1).max(500) }),
       annotations: { readOnlyHint: true, idempotentHint: true, destructiveHint: false },
     }, async (input) => toolResult(await account.prepareAccountBrief(input)));
@@ -171,6 +179,7 @@ export function createConvoWeaveHttpServer(options = {}) {
   const mcpHandler = createMcpHandler((context) => createConvoWeaveMcpServer({
     authInfo: context.authInfo,
     accountStore,
+    scopeNames: authConfig.scopeNames,
   }));
   const nodeMcpHandler = toNodeHandler(mcpHandler);
   const challenge = (details) => bearerChallenge(authConfig, details);
@@ -217,7 +226,7 @@ export function createConvoWeaveHttpServer(options = {}) {
           response.end(JSON.stringify({ error: { code: 'unauthorized', message: 'Authentication is required.' } }));
           return;
         }
-        await handleAccountApi({ request, response, url: pathUrl, authInfo, accountStore, challenge });
+        await handleAccountApi({ request, response, url: pathUrl, authInfo, accountStore, challenge, scopeNames: authConfig.scopeNames });
         return;
       }
 
