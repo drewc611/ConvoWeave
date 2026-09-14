@@ -2,7 +2,7 @@
   "mcpServers": {
     "convoweave": {
       "type": "http",
-      "url": "${CONVOWEAVE_MCP_URL}"
+      "url": "https://convoweave-mcp.onrender.com/mcp"
     }
   }
 }
