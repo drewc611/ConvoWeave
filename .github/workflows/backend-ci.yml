@@ -56,6 +56,9 @@ jobs:
       - name: Backend auth, contract, persistence, and retention tests
         run: npm --prefix backend test
 
+      - name: Backend dependency audit
+        run: npm --prefix backend audit --audit-level=high --omit=dev
+
       - name: Build backend container
         run: docker build -f backend/Dockerfile -t convoweave-backend:test .
 
