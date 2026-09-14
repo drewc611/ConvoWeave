@@ -131,8 +131,9 @@ export function AppRoot() {
     setSelectedThreadId(thread.id);
   };
 
-  const startCaptureDraft = async (audioUri?: string) => {
+  const startCaptureDraft = async (audioUri: string | undefined, captureNotes: string) => {
     const now = new Date();
+    const normalizedNotes = captureNotes.trim();
     const draft: Meeting = {
       id: makeId('meeting'),
       threadId: selectedThreadId ?? undefined,
@@ -140,6 +141,7 @@ export function AppRoot() {
       startedAt: now.toISOString(),
       durationMs: 0,
       audioUri,
+      captureNotes: normalizedNotes || undefined,
       status: 'draft',
     };
     await repositories.meetings.upsert(draft);
@@ -147,20 +149,23 @@ export function AppRoot() {
     setPendingDraftMeeting(draft);
   };
 
-  const checkpointCapture = async (audioUri: string | undefined, durationMs: number) => {
+  const checkpointCapture = async (audioUri: string | undefined, durationMs: number, captureNotes: string) => {
     if (!currentMeeting || currentMeeting.status !== 'draft') return;
+    const normalizedNotes = captureNotes.trim();
     const updated: Meeting = {
       ...currentMeeting,
       durationMs,
       audioUri: audioUri ?? currentMeeting.audioUri,
+      captureNotes: normalizedNotes || undefined,
     };
     await repositories.meetings.upsert(updated);
     setCurrentMeeting(updated);
     setPendingDraftMeeting(updated);
   };
 
-  const finishCapture = async (audioUri: string | undefined, durationMs: number) => {
+  const finishCapture = async (audioUri: string | undefined, durationMs: number, captureNotes: string) => {
     const now = new Date();
+    const normalizedNotes = captureNotes.trim();
     const base: Meeting = currentMeeting?.status === 'draft'
       ? currentMeeting
       : {
@@ -176,6 +181,7 @@ export function AppRoot() {
       endedAt: now.toISOString(),
       durationMs,
       audioUri: audioUri ?? base.audioUri,
+      captureNotes: normalizedNotes || base.captureNotes,
       status: 'review',
     };
     await repositories.meetings.upsert(meeting);
@@ -296,7 +302,7 @@ export function AppRoot() {
     };
 
     await repositories.changes.upsert(changeSet);
-    await repositories.meetings.upsert({ ...meeting, threadId, transcript: review.transcript, status: 'complete' });
+    await repositories.meetings.upsert({ ...meeting, threadId, transcript: review.transcript, captureNotes: undefined, status: 'complete' });
     await repositories.reviews.remove(meeting.id);
 
     setCurrentMeeting(null);
@@ -347,7 +353,7 @@ export function AppRoot() {
   const deletePrivateNote = async (note: PrivateNote) => { await repositories.privateNotes.remove(note.id); await refresh(); };
 
   if (route === 'capture') {
-    return <CaptureScreen onCancel={() => { setRoute('home'); void refresh(); }} onStarted={startCaptureDraft} onCheckpoint={checkpointCapture} onFinished={finishCapture} />;
+    return <CaptureScreen threadTitle={selectedThread?.title ?? 'Meeting thread'} onCancel={() => { setRoute('home'); void refresh(); }} onStarted={startCaptureDraft} onCheckpoint={checkpointCapture} onFinished={finishCapture} />;
   }
   if (route === 'review' && currentMeeting) {
     return <ReviewScreen meeting={currentMeeting} providers={mockProviders} initialReview={currentReview} priorDecisions={threadDecisions} onProgress={saveReviewProgress} onDone={saveReview} />;
