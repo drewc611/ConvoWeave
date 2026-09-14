@@ -1,0 +1,53 @@
+name: MCP Integration CI
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'integrations/mcp/**'
+      - 'integrations/chatgpt/**'
+      - 'integrations/claude/**'
+      - '.github/workflows/mcp-ci.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'integrations/mcp/**'
+      - 'integrations/chatgpt/**'
+      - 'integrations/claude/**'
+      - '.github/workflows/mcp-ci.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+      - name: Install MCP dependencies
+        run: npm --prefix integrations/mcp install --ignore-scripts
+      - name: Test MCP contracts
+        run: npm --prefix integrations/mcp test
+      - name: Dependency audit
+        run: npm --prefix integrations/mcp audit --audit-level=high
+      - name: Smoke remote MCP service
+        shell: bash
+        run: |
+          npm --prefix integrations/mcp start > /tmp/convoweave-mcp.log 2>&1 &
+          pid=$!
+          trap 'kill $pid || true' EXIT
+          for i in {1..20}; do
+            if curl --fail --silent http://127.0.0.1:8790/healthz > /tmp/mcp-health.json; then
+              cat /tmp/mcp-health.json
+              exit 0
+            fi
+            sleep 1
+          done
+          cat /tmp/convoweave-mcp.log
+          exit 1

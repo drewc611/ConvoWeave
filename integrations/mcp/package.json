@@ -1,0 +1,17 @@
+{
+  "name": "@convoweave/mcp-integration",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "engines": { "node": ">=24" },
+  "scripts": {
+    "start": "node server.mjs",
+    "check": "node --check server.mjs && node --check tools.mjs",
+    "test": "npm run check && node --test tools.node-test.mjs"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/node": "^2.0.0",
+    "@modelcontextprotocol/server": "^2.0.0",
+    "zod": "^4.1.0"
+  }
+}
