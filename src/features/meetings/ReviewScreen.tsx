@@ -95,7 +95,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
   const remotePreviewEnabled = runtimeConfig?.environment === 'preview' && runtimeConfig.processingMode === 'remote';
   const persistedTranscript = initialReview?.transcript ?? meeting.transcript;
   const [sourceTranscript, setSourceTranscript] = useState<Transcript | null>(hasRemoteEvidence(persistedTranscript) ? persistedTranscript : null);
-  const [notes, setNotes] = useState(notesFromTranscript(persistedTranscript));
+  const [notes, setNotes] = useState(notesFromTranscript(persistedTranscript) || meeting.captureNotes || '');
   const [proposals, setProposals] = useState<DraftProposal[]>(initialReview?.proposals ?? []);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
