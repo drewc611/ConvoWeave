@@ -1,15 +1,17 @@
 {
   "name": "@convoweave/mcp-integration",
-  "version": "0.2.0",
+  "version": "0.3.0",
   "private": true,
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
     "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check tools.mjs && node --check auth.mjs && node --check accountStore.mjs && node --check accountApi.mjs && node --check accountTools.mjs",
+    "check": "node --check server.mjs && node --check tools.mjs && node --check auth.mjs && node --check accountStore.mjs && node --check awsAccountStore.mjs && node --check accountApi.mjs && node --check accountTools.mjs",
     "test": "npm run check && node --test *.node-test.mjs"
   },
   "dependencies": {
+    "@aws-sdk/client-dynamodb": "^3.900.0",
+    "@aws-sdk/client-s3": "^3.900.0",
     "@modelcontextprotocol/node": "^2.0.0",
     "@modelcontextprotocol/server": "^2.0.0",
     "jose": "^6.1.0",
