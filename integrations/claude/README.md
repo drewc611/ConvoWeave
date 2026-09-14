@@ -1,25 +1,32 @@
 # Claude integration
 
-ConvoWeave uses the same remote MCP endpoint for Claude Connectors and adds an Agent Skill for the ConvoWeave workflow.
+ConvoWeave uses the shared remote MCP service in `integrations/mcp`.
 
-## Connector setup
+## OAuth account connection
 
-1. Deploy `integrations/mcp` behind public HTTPS, for example `https://api.example.com/mcp`.
-2. In Claude Settings > Connectors, add the remote MCP server URL.
-3. Enable only the ConvoWeave tools needed for the current workflow.
-4. Install the skill in `skills/convoweave-meeting-memory/` through Claude Skills or the organization's managed skill deployment process.
-5. Test the connector with source-backed meeting notes before directory submission.
+1. Deploy the ConvoWeave MCP service to a public HTTPS endpoint reachable from Anthropic's cloud infrastructure.
+2. Configure `CONVOWEAVE_MCP_AUTH_MODE=oidc` plus `CONVOWEAVE_MCP_PUBLIC_BASE_URL`, `OIDC_ISSUER`, `OIDC_AUDIENCE`, and `OIDC_JWKS_URL`.
+3. Register the Claude OAuth client/redirect URI with that identity provider. For Team/Enterprise custom connectors, the owner can enter the MCP URL and OAuth client settings in connector administration.
+4. Grant only the scopes required by the connection: `convoweave.read` and, when write actions are intended, `convoweave.write`. Enable refresh/offline access when the identity provider and connector flow require persistent connectivity.
+5. Add the remote `/mcp` URL as a custom connector, authenticate, then enable it for a test conversation.
+6. Validate read/write behavior with non-production data before wider organization rollout or directory submission.
 
-Claude remote MCP supports tools, prompts, and resources across Claude web/desktop and supported mobile use after the connector has been configured. The v1 ConvoWeave server intentionally exposes only stateless tools and therefore does not require account OAuth yet.
+## Account-backed tools
 
-## Directory path
+Authenticated Claude connections can use:
 
-After the hosted connector meets Anthropic's MCP directory security, privacy, and compatibility requirements, submit the remote MCP server through Anthropic's Connectors Directory review process.
+- `convoweave_list_threads`
+- `convoweave_get_thread`
+- `convoweave_prepare_account_brief`
+- `convoweave_upsert_thread`
+- `convoweave_delete_thread`
 
-## Initial user prompts
+The service derives account identity exclusively from the verified access-token `issuer + subject`. No MCP tool accepts a user ID that could select a different account.
 
-- “Use ConvoWeave to structure these notes, but only include items with exact evidence.”
-- “Use ConvoWeave to prepare me for the next meeting from this current state.”
-- “Compare these prior and current meeting states with ConvoWeave.”
+## Privacy boundary
 
-Do not put provider keys, user credentials, recordings, or private meeting content inside the Agent Skill package.
+Private Sidecar notes are not syncable and are not exposed by the account tools. Do not add them to connector test fixtures, logs, synced snapshots, or skill examples.
+
+## Connector-directory readiness
+
+Before public or organization-wide rollout, deploy durable production account storage, complete privacy/retention/account-deletion controls, register production OAuth clients, verify consent for write/destructive tools, and complete Anthropic's current connector review or directory process. External publication remains an account-holder/owner action.
