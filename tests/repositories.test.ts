@@ -45,7 +45,7 @@ beforeEach(() => {
 });
 
 describe('repository restart persistence', () => {
-  it('recovers an unfinished recording draft from a new repository instance', async () => {
+  it('recovers an unfinished recording draft and live notes from a new repository instance', async () => {
     const draft: Meeting = {
       id: 'meeting-draft-1',
       threadId: 'thread-1',
@@ -53,6 +53,7 @@ describe('repository restart persistence', () => {
       startedAt: '2026-09-13T18:00:00-04:00',
       durationMs: 65000,
       audioUri: 'file:///recordings/meeting-draft-1.m4a',
+      captureNotes: 'Pricing decision changed. Ask Jordan to confirm the rollout date.',
       status: 'draft',
     };
 
@@ -63,6 +64,7 @@ describe('repository restart persistence', () => {
     expect(afterRestart?.status).toBe('draft');
     expect(afterRestart?.audioUri).toBe(draft.audioUri);
     expect(afterRestart?.durationMs).toBe(65000);
+    expect(afterRestart?.captureNotes).toBe('Pricing decision changed. Ask Jordan to confirm the rollout date.');
   });
 
   it('recovers transcript and proposal review state from a new repository instance', async () => {
