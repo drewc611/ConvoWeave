@@ -3,6 +3,7 @@ import { createServer } from 'node:http';
 import { createAuthVerifier } from './auth/index.mjs';
 import { loadBackendConfig } from './config.mjs';
 import { createProcessor } from './providers/index.mjs';
+import { cleanupExpiredSessions, createFixedWindowLimiter, idempotencyHash, isExpired, normalizeIdempotencyKey } from './reliability.mjs';
 import { createStorage } from './storage/index.mjs';
 import { createInMemoryAudioStore } from './storage/audioStore.mjs';
 import { createInMemorySessionStore, hashUploadToken } from './storage/sessionStore.mjs';
@@ -17,38 +18,18 @@ function requestIdFor(request) {
   if (typeof supplied === 'string' && supplied.trim() && supplied.length <= 128) return supplied.trim();
   return randomUUID();
 }
-
-function json(response, status, payload, requestId) {
+function json(response, status, payload, requestId, extraHeaders = {}) {
   const body = JSON.stringify(payload);
-  response.writeHead(status, {
-    'Content-Type': 'application/json; charset=utf-8',
-    'Content-Length': Buffer.byteLength(body),
-    'Cache-Control': 'no-store',
-    'X-Request-Id': requestId,
-  });
+  response.writeHead(status, { 'Content-Type': 'application/json; charset=utf-8', 'Content-Length': Buffer.byteLength(body), 'Cache-Control': 'no-store', 'X-Request-Id': requestId, ...extraHeaders });
   response.end(body);
 }
-
-function apiError(response, status, code, message, requestId) {
-  json(response, status, { error: { code, message, requestId } }, requestId);
-}
-
-function noContent(response, requestId, status = 204) {
-  response.writeHead(status, { 'Cache-Control': 'no-store', 'X-Request-Id': requestId });
-  response.end();
-}
-
+function apiError(response, status, code, message, requestId, extraHeaders = {}) { json(response, status, { error: { code, message, requestId } }, requestId, extraHeaders); }
+function noContent(response, requestId, status = 204) { response.writeHead(status, { 'Cache-Control': 'no-store', 'X-Request-Id': requestId }); response.end(); }
 async function readBody(request, maxBytes) {
-  const chunks = [];
-  let size = 0;
-  for await (const chunk of request) {
-    size += chunk.length;
-    if (size > maxBytes) throw new Error('request-too-large');
-    chunks.push(chunk);
-  }
+  const chunks = []; let size = 0;
+  for await (const chunk of request) { size += chunk.length; if (size > maxBytes) throw new Error('request-too-large'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
-
 function bearerToken(request) {
   const authorization = request.headers.authorization;
   if (!authorization?.startsWith('Bearer ')) return null;
@@ -56,296 +37,140 @@ function bearerToken(request) {
   return token || null;
 }
 
-export function createBackendServer({
-  config = loadBackendConfig(),
-  processor = createProcessor(config),
-  authVerifier = createAuthVerifier(config),
-  sessionStore = createInMemorySessionStore(),
-  audioStore = createInMemoryAudioStore(),
-  logger = console,
-} = {}) {
+export function createBackendServer({ config = loadBackendConfig(), processor = createProcessor(config), authVerifier = createAuthVerifier(config), sessionStore = createInMemorySessionStore(), audioStore = createInMemoryAudioStore(), logger = console } = {}) {
   const recoveryTasks = new Map();
+  const reliability = config.reliability ?? { uploadTtlMs: 900000, sessionTtlMs: 86400000, rateLimitPerMinute: 60 };
+  const limiter = createFixedWindowLimiter({ limit: reliability.rateLimitPerMinute, windowMs: 60000 });
+  let shuttingDown = false;
+  let cleanupTimer;
 
-  async function authenticate(request) {
-    return authVerifier.verify(bearerToken(request));
-  }
-
-  function ownsSession(session, principal) {
-    if (session.ownerSubject) return session.ownerSubject === principal.subject;
-    return config.authMode === 'development-token' && principal.authMode === 'development-token';
-  }
-
+  async function authenticate(request) { return authVerifier.verify(bearerToken(request)); }
+  function ownsSession(session, principal) { return session.ownerSubject ? session.ownerSubject === principal.subject : config.authMode === 'development-token' && principal.authMode === 'development-token'; }
   async function applyAudioRetention(session, requestId) {
     if (!session.audioRef || config.storage?.audioRetention !== 'delete-after-processing') return session;
     try {
       await audioStore.remove(session.audioRef);
-      const updated = {
-        ...session,
-        audioRef: undefined,
-        audioDeletedAt: new Date().toISOString(),
-      };
-      await sessionStore.put(updated);
-      return updated;
+      const updated = { ...session, audioRef: undefined, audioDeletedAt: new Date().toISOString() };
+      await sessionStore.put(updated); return updated;
     } catch (error) {
-      logger.error?.('audio-retention-delete-failed', {
-        requestId,
-        sessionId: session.id,
-        meetingId: session.meetingId,
-        message: error instanceof Error ? error.message : 'unknown-error',
-      });
+      logger.error?.('audio-retention-delete-failed', { requestId, sessionId: session.id, meetingId: session.meetingId, message: error instanceof Error ? error.message : 'unknown-error' });
       return session;
     }
   }
-
   async function processStoredSession(session, requestId) {
-    const existing = recoveryTasks.get(session.id);
-    if (existing) return existing;
-
+    const existing = recoveryTasks.get(session.id); if (existing) return existing;
     const task = (async () => {
       let current = session;
       try {
         if (!current.audioRef) throw new Error('Processing session has no retained audio object.');
         const audio = await audioStore.read(current.audioRef);
         const result = await processor.process({ session: { ...current }, audio });
-        current = {
-          ...current,
-          result,
-          status: 'ready',
-          completedAt: new Date().toISOString(),
-          failureCode: undefined,
-        };
+        current = { ...current, result, status: 'ready', completedAt: new Date().toISOString(), failureCode: undefined };
         await sessionStore.put(current);
       } catch (error) {
-        current = {
-          ...current,
-          status: 'failed',
-          failureCode: 'processing-provider-failed',
-          failedAt: new Date().toISOString(),
-        };
+        current = { ...current, status: 'failed', failureCode: 'processing-provider-failed', failedAt: new Date().toISOString() };
         await sessionStore.put(current);
-        logger.error?.('processing-provider-failed', {
-          requestId,
-          sessionId: current.id,
-          meetingId: current.meetingId,
-          provider: processor.name,
-          message: error instanceof Error ? error.message : 'unknown-error',
-        });
+        logger.error?.('processing-provider-failed', { requestId, sessionId: current.id, meetingId: current.meetingId, provider: processor.name, message: error instanceof Error ? error.message : 'unknown-error' });
         throw error;
-      } finally {
-        current = await applyAudioRetention(current, requestId);
-      }
+      } finally { current = await applyAudioRetention(current, requestId); }
       return current;
     })().finally(() => recoveryTasks.delete(session.id));
-
-    recoveryTasks.set(session.id, task);
-    return task;
+    recoveryTasks.set(session.id, task); return task;
   }
 
   const server = createServer(async (request, response) => {
     const requestId = requestIdFor(request);
-
     try {
       const host = request.headers.host ?? '127.0.0.1';
       const url = new URL(request.url ?? '/', `http://${host}`);
-
-      if (request.method === 'GET' && url.pathname === '/healthz') {
-        json(response, 200, { status: 'ok', service: SERVICE_NAME, apiVersion: API_VERSION }, requestId);
-        return;
-      }
-
+      if (request.method === 'GET' && url.pathname === '/healthz') { json(response, 200, { status: 'ok', service: SERVICE_NAME, apiVersion: API_VERSION }, requestId); return; }
       if (request.method === 'GET' && url.pathname === '/readyz') {
-        const [processorReady, authReady, sessionsReady, audioReady] = await Promise.all([
-          processor.ready(),
-          authVerifier.ready(),
-          sessionStore.ready(),
-          audioStore.ready(),
-        ]);
+        if (shuttingDown) { json(response, 503, { status: 'not-ready', service: SERVICE_NAME, reason: 'shutting-down' }, requestId); return; }
+        const [processorReady, authReady, sessionsReady, audioReady] = await Promise.all([processor.ready(), authVerifier.ready(), sessionStore.ready(), audioStore.ready()]);
         const ready = processorReady && authReady && sessionsReady && audioReady;
-        json(response, ready ? 200 : 503, {
-          status: ready ? 'ready' : 'not-ready',
-          service: SERVICE_NAME,
-          environment: config.environment,
-          provider: processor.name,
-          auth: authVerifier.name,
-          storage: {
-            sessions: sessionStore.kind,
-            audio: audioStore.kind,
-          },
-        }, requestId);
-        return;
+        json(response, ready ? 200 : 503, { status: ready ? 'ready' : 'not-ready', service: SERVICE_NAME, environment: config.environment, provider: processor.name, auth: authVerifier.name, storage: { sessions: sessionStore.kind, audio: audioStore.kind } }, requestId); return;
       }
+      if (shuttingDown) { apiError(response, 503, 'shutting-down', 'The service is shutting down and is not accepting new work.', requestId, { 'Retry-After': '5' }); return; }
 
       if (request.method === 'PUT' && url.pathname.startsWith('/v1/uploads/')) {
         const token = decodeURIComponent(url.pathname.slice('/v1/uploads/'.length));
         const session = await sessionStore.findByUploadToken(token);
-        if (!session) {
-          apiError(response, 404, 'upload-not-found', 'The upload capability is unknown or already consumed.', requestId);
-          return;
+        if (!session) { apiError(response, 404, 'upload-not-found', 'The upload capability is unknown or already consumed.', requestId); return; }
+        if (session.uploadConsumedAt || isExpired(session.createdAt, reliability.uploadTtlMs)) {
+          if (!session.uploadConsumedAt) { session.uploadTokenHash = undefined; session.status = 'expired'; await sessionStore.put(session); }
+          apiError(response, 410, 'upload-expired', 'The upload capability has expired or already been used.', requestId); return;
         }
-        if (session.uploadConsumedAt) {
-          apiError(response, 410, 'upload-expired', 'The upload capability has expired or already been used.', requestId);
-          return;
-        }
-
         const audio = await readBody(request, MAX_AUDIO_BYTES);
-        if (audio.length === 0) {
-          apiError(response, 400, 'empty-audio', 'The uploaded audio payload is empty.', requestId);
-          return;
-        }
-
+        if (audio.length === 0) { apiError(response, 400, 'empty-audio', 'The uploaded audio payload is empty.', requestId); return; }
         const audioRef = await audioStore.write(session.id, audio);
-        let processingSession = {
-          ...session,
-          audioBytes: audio.length,
-          audioSha256: createHash('sha256').update(audio).digest('hex'),
-          audioRef,
-          uploadConsumedAt: new Date().toISOString(),
-          uploadTokenHash: undefined,
-          status: 'processing',
-        };
+        let processingSession = { ...session, audioBytes: audio.length, audioSha256: createHash('sha256').update(audio).digest('hex'), audioRef, uploadConsumedAt: new Date().toISOString(), uploadTokenHash: undefined, status: 'processing' };
         await sessionStore.put(processingSession);
-
-        logger.info?.('processing-audio-received', {
-          requestId,
-          sessionId: processingSession.id,
-          meetingId: processingSession.meetingId,
-          bytes: processingSession.audioBytes,
-          sha256: processingSession.audioSha256,
-          provider: processor.name,
-          audioStore: audioStore.kind,
-        });
-
-        try {
-          processingSession = await processStoredSession(processingSession, requestId);
-        } catch {
-          apiError(response, 502, 'processing-provider-failed', 'The processing provider could not complete this meeting.', requestId);
-          return;
-        }
-
-        noContent(response, requestId);
-        return;
+        logger.info?.('processing-audio-received', { requestId, sessionId: processingSession.id, meetingId: processingSession.meetingId, bytes: processingSession.audioBytes, sha256: processingSession.audioSha256, provider: processor.name, audioStore: audioStore.kind });
+        try { processingSession = await processStoredSession(processingSession, requestId); } catch { apiError(response, 502, 'processing-provider-failed', 'The processing provider could not complete this meeting.', requestId); return; }
+        noContent(response, requestId); return;
       }
 
       const principal = await authenticate(request);
-      if (!principal) {
-        apiError(response, 401, 'unauthorized', 'Authentication is required for this endpoint.', requestId);
-        return;
-      }
+      if (!principal) { apiError(response, 401, 'unauthorized', 'Authentication is required for this endpoint.', requestId); return; }
+      const rate = limiter.check(principal.subject);
+      if (!rate.allowed) { apiError(response, 429, 'rate-limit-exceeded', 'Too many requests. Retry after the current rate-limit window.', requestId, { 'Retry-After': String(Math.max(1, Math.ceil((rate.resetAt - Date.now()) / 1000))) }); return; }
 
       if (request.method === 'POST' && url.pathname === '/v1/processing-sessions') {
-        const raw = await readBody(request, MAX_JSON_BYTES);
-        let input;
-        try {
-          input = JSON.parse(raw.toString('utf8'));
-        } catch {
-          apiError(response, 400, 'invalid-json', 'Request body must contain valid JSON.', requestId);
-          return;
-        }
+        const raw = await readBody(request, MAX_JSON_BYTES); let input;
+        try { input = JSON.parse(raw.toString('utf8')); } catch { apiError(response, 400, 'invalid-json', 'Request body must contain valid JSON.', requestId); return; }
+        if (!input || typeof input.meetingId !== 'string' || input.meetingId.trim().length === 0 || input.meetingId.length > 200) { apiError(response, 400, 'meeting-id-required', 'meetingId is required and must be 200 characters or fewer.', requestId); return; }
+        if (input.uploadScope !== 'audio-and-transcript' && input.uploadScope !== 'transcript-only') { apiError(response, 400, 'invalid-upload-scope', 'uploadScope must be audio-and-transcript or transcript-only.', requestId); return; }
+        if (input.uploadScope !== 'audio-and-transcript') { apiError(response, 422, 'reference-backend-requires-audio', 'Transcript-only processing is not implemented by this provider.', requestId); return; }
 
-        if (!input || typeof input.meetingId !== 'string' || input.meetingId.trim().length === 0) {
-          apiError(response, 400, 'meeting-id-required', 'meetingId is required.', requestId);
-          return;
-        }
-        if (input.uploadScope !== 'audio-and-transcript' && input.uploadScope !== 'transcript-only') {
-          apiError(response, 400, 'invalid-upload-scope', 'uploadScope must be audio-and-transcript or transcript-only.', requestId);
-          return;
-        }
-        if (input.uploadScope !== 'audio-and-transcript') {
-          apiError(response, 422, 'reference-backend-requires-audio', 'Transcript-only processing is not implemented by this provider.', requestId);
-          return;
-        }
-
-        const id = randomUUID();
-        const uploadToken = randomBytes(32).toString('base64url');
-        const session = {
-          id,
-          meetingId: input.meetingId.trim(),
-          threadId: typeof input.threadId === 'string' ? input.threadId : undefined,
-          durationMs: Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0,
-          uploadScope: input.uploadScope,
-          approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt : null,
-          ownerSubject: principal.subject,
-          authIssuer: principal.issuer,
-          status: 'created',
-          createdAt: new Date().toISOString(),
-          uploadTokenHash: hashUploadToken(uploadToken),
-        };
-        await sessionStore.put(session);
-
-        const origin = config.publicBaseUrl ?? `http://${host}`;
-        json(response, 201, {
-          id,
-          meetingId: session.meetingId,
-          status: session.status,
-          audioUploadUrl: `${origin.replace(/\/$/, '')}/v1/uploads/${encodeURIComponent(uploadToken)}`,
-        }, requestId);
-        logger.info?.('processing-session-created', {
-          requestId,
-          sessionId: id,
-          meetingId: session.meetingId,
-          uploadScope: session.uploadScope,
-          provider: processor.name,
-          sessionStore: sessionStore.kind,
-        });
-        return;
-      }
-
-      if (request.method === 'GET' && url.pathname.startsWith('/v1/processing-sessions/')) {
-        const id = decodeURIComponent(url.pathname.slice('/v1/processing-sessions/'.length));
-        let session = await sessionStore.get(id);
-        if (!session) {
-          apiError(response, 404, 'processing-session-not-found', 'The processing session does not exist.', requestId);
-          return;
-        }
-        if (!ownsSession(session, principal)) {
-          apiError(response, 403, 'forbidden', 'The processing session belongs to a different user.', requestId);
-          return;
-        }
-
-        if (session.status === 'processing' && session.audioRef) {
-          try {
-            session = await processStoredSession(session, requestId);
-          } catch {
-            session = await sessionStore.get(id) ?? session;
+        const suppliedKey = request.headers['idempotency-key'];
+        const idempotencyKey = normalizeIdempotencyKey(suppliedKey);
+        if (suppliedKey && !idempotencyKey) { apiError(response, 400, 'invalid-idempotency-key', 'Idempotency-Key must be 1-128 safe characters.', requestId); return; }
+        const idemHash = idempotencyKey ? idempotencyHash(principal.subject, idempotencyKey) : undefined;
+        if (idemHash) {
+          const existing = (await sessionStore.list()).find((candidate) => candidate.idempotencyHash === idemHash && !isExpired(candidate.createdAt, reliability.sessionTtlMs));
+          if (existing) {
+            const origin = config.publicBaseUrl ?? `http://${host}`;
+            json(response, 200, { id: existing.id, meetingId: existing.meetingId, status: existing.status, replayed: true, audioUploadUrl: existing.status === 'created' ? `${origin.replace(/\/$/, '')}/v1/uploads/unavailable-replay` : undefined }, requestId); return;
           }
         }
 
-        if (session.status === 'failed') {
-          apiError(response, 502, session.failureCode ?? 'processing-failed', 'The processing session failed.', requestId);
-          return;
-        }
-        if (session.status !== 'ready' || !session.result) {
-          json(response, 202, { id: session.id, meetingId: session.meetingId, status: session.status }, requestId);
-          return;
-        }
-        json(response, 200, session.result, requestId);
-        return;
+        const id = randomUUID(); const uploadToken = randomBytes(32).toString('base64url');
+        const session = { id, meetingId: input.meetingId.trim(), threadId: typeof input.threadId === 'string' ? input.threadId.slice(0, 200) : undefined, durationMs: Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0, uploadScope: input.uploadScope, approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt : null, ownerSubject: principal.subject, authIssuer: principal.issuer, status: 'created', createdAt: new Date().toISOString(), uploadTokenHash: hashUploadToken(uploadToken), idempotencyHash: idemHash };
+        await sessionStore.put(session);
+        const origin = config.publicBaseUrl ?? `http://${host}`;
+        json(response, 201, { id, meetingId: session.meetingId, status: session.status, audioUploadUrl: `${origin.replace(/\/$/, '')}/v1/uploads/${encodeURIComponent(uploadToken)}` }, requestId);
+        logger.info?.('processing-session-created', { requestId, sessionId: id, meetingId: session.meetingId, uploadScope: session.uploadScope, provider: processor.name, sessionStore: sessionStore.kind }); return;
       }
 
+      if (request.method === 'GET' && url.pathname.startsWith('/v1/processing-sessions/')) {
+        const id = decodeURIComponent(url.pathname.slice('/v1/processing-sessions/'.length)); let session = await sessionStore.get(id);
+        if (!session || isExpired(session.createdAt, reliability.sessionTtlMs)) { apiError(response, 404, 'processing-session-not-found', 'The processing session does not exist or has expired.', requestId); return; }
+        if (!ownsSession(session, principal)) { apiError(response, 403, 'forbidden', 'The processing session belongs to a different user.', requestId); return; }
+        if (session.status === 'processing' && session.audioRef) { try { session = await processStoredSession(session, requestId); } catch { session = await sessionStore.get(id) ?? session; } }
+        if (session.status === 'failed') { apiError(response, 502, session.failureCode ?? 'processing-failed', 'The processing session failed.', requestId); return; }
+        if (session.status !== 'ready' || !session.result) { json(response, 202, { id: session.id, meetingId: session.meetingId, status: session.status }, requestId); return; }
+        json(response, 200, session.result, requestId); return;
+      }
       apiError(response, 404, 'not-found', 'The requested endpoint does not exist.', requestId);
     } catch (error) {
-      if (error instanceof Error && error.message === 'request-too-large') {
-        apiError(response, 413, 'request-too-large', 'The request exceeds the allowed size.', requestId);
-        return;
-      }
-      logger.error?.('backend-request-failed', {
-        requestId,
-        message: error instanceof Error ? error.message : 'unknown-error',
-      });
-      apiError(response, 500, 'internal-error', 'An unexpected server error occurred.', requestId);
+      if (error instanceof Error && error.message === 'request-too-large') { apiError(response, 413, 'request-too-large', 'The request exceeds the allowed size.', requestId); return; }
+      logger.error?.('backend-request-failed', { requestId, message: error instanceof Error ? error.message : 'unknown-error' }); apiError(response, 500, 'internal-error', 'An unexpected server error occurred.', requestId);
     }
   });
 
+  server.on('listening', () => {
+    cleanupTimer = setInterval(() => cleanupExpiredSessions({ sessionStore, audioStore, sessionTtlMs: reliability.sessionTtlMs }).catch((error) => logger.error?.('session-cleanup-failed', { message: error instanceof Error ? error.message : 'unknown-error' })), Math.min(reliability.sessionTtlMs, 15 * 60 * 1000));
+    cleanupTimer.unref?.();
+  });
+  server.on('close', () => { shuttingDown = true; if (cleanupTimer) clearInterval(cleanupTimer); });
+  server.beginShutdown = () => { shuttingDown = true; };
   return server;
 }
 
 if (import.meta.url === `file://${process.argv[1]}`) {
-  const config = loadBackendConfig();
-  const processor = createProcessor(config);
-  const authVerifier = createAuthVerifier(config);
-  const storage = createStorage(config);
+  const config = loadBackendConfig(); const processor = createProcessor(config); const authVerifier = createAuthVerifier(config); const storage = createStorage(config);
   const server = createBackendServer({ config, processor, authVerifier, ...storage });
-  server.listen(config.port, config.host, () => {
-    console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name}, ${authVerifier.name}, ${config.storage.mode})`);
-  });
+  server.listen(config.port, config.host, () => console.info(`${SERVICE_NAME} listening on http://${config.host}:${config.port} (${config.environment}, ${processor.name}, ${authVerifier.name}, ${config.storage.mode})`));
+  const shutdown = () => { server.beginShutdown(); server.close(() => process.exit(0)); setTimeout(() => process.exit(1), 10000).unref(); };
+  process.once('SIGTERM', shutdown); process.once('SIGINT', shutdown);
 }
