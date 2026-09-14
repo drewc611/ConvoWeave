@@ -19,6 +19,7 @@ export type Meeting = {
   endedAt?: ISODateTime;
   durationMs: number;
   audioUri?: string;
+  captureNotes?: string;
   status: MeetingStatus;
   transcript?: Transcript;
 };
