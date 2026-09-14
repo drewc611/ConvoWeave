@@ -1,0 +1,17 @@
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/2025-12-11/server.schema.json",
+  "name": "io.github.drewc611/convoweave",
+  "title": "ConvoWeave",
+  "description": "Source-backed meeting memory for decisions, commitments, assumptions, contradictions, briefs, and what changed across conversations.",
+  "repository": {
+    "url": "https://github.com/drewc611/ConvoWeave",
+    "source": "github"
+  },
+  "version": "1.0.0",
+  "remotes": [
+    {
+      "type": "streamable-http",
+      "url": "https://replace-after-deployment.example/mcp"
+    }
+  ]
+}

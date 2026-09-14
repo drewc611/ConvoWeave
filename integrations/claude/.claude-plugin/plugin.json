@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json.schemastore.org/claude-code-plugin-manifest.json",
+  "name": "convoweave-meeting-memory",
+  "displayName": "ConvoWeave Meeting Memory",
+  "version": "1.0.0",
+  "description": "Source-backed meeting memory for decisions, commitments, assumptions, contradictions, briefs, and what changed across conversations.",
+  "author": {
+    "name": "Andrew Michael Clark",
+    "url": "https://github.com/drewc611"
+  },
+  "homepage": "https://github.com/drewc611/ConvoWeave/tree/main/integrations/claude",
+  "repository": "https://github.com/drewc611/ConvoWeave",
+  "keywords": [
+    "meetings",
+    "meeting-memory",
+    "decisions",
+    "commitments",
+    "mcp",
+    "productivity"
+  ]
+}
