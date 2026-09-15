@@ -74,27 +74,53 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          yes | sdkmanager --licenses >/dev/null || true
-          sdkmanager \
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          SDKMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/sdkmanager"
+          AVDMANAGER="$SDK_ROOT/cmdline-tools/latest/bin/avdmanager"
+
+          if [ ! -x "$SDKMANAGER" ]; then
+            SDKMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name sdkmanager 2>/dev/null | sort -V | tail -n 1)"
+          fi
+          if [ ! -x "$AVDMANAGER" ]; then
+            AVDMANAGER="$(find "$SDK_ROOT/cmdline-tools" -type f -name avdmanager 2>/dev/null | sort -V | tail -n 1)"
+          fi
+
+          test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
+          test -n "$AVDMANAGER" && test -x "$AVDMANAGER"
+          echo "Using sdkmanager: $SDKMANAGER"
+          echo "Using avdmanager: $AVDMANAGER"
+
+          yes | "$SDKMANAGER" --licenses >/dev/null || true
+          "$SDKMANAGER" \
             'platform-tools' \
             'emulator' \
             'platforms;android-35' \
             'system-images;android-35;google_apis;x86_64'
-          echo no | avdmanager create avd \
+
+          echo no | "$AVDMANAGER" create avd \
             --force \
             --name convoweave-ci \
             --package 'system-images;android-35;google_apis;x86_64' \
             --device 'pixel_6'
 
+          echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
+          echo "$SDK_ROOT/emulator" >> "$GITHUB_PATH"
+
       - name: Start emulator and wait for Android
         shell: bash
         run: |
           set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          ADB="$SDK_ROOT/platform-tools/adb"
+          EMULATOR="$SDK_ROOT/emulator/emulator"
+          test -x "$ADB"
+          test -x "$EMULATOR"
+
           mkdir -p qa-runtime
           if [ -e /dev/kvm ]; then
             sudo chmod 666 /dev/kvm
           fi
-          nohup emulator \
+          nohup "$EMULATOR" \
             -avd convoweave-ci \
             -no-window \
             -noaudio \
@@ -103,24 +129,27 @@ jobs:
             -wipe-data \
             > qa-runtime/emulator.log 2>&1 &
 
-          adb wait-for-device
+          "$ADB" wait-for-device
           for attempt in $(seq 1 90); do
-            if [ "$(adb shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then
+            if [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then
               break
             fi
             if [ "$attempt" -eq 90 ]; then
               echo 'Android emulator did not finish booting.' >&2
+              cat qa-runtime/emulator.log >&2 || true
               exit 1
             fi
             sleep 3
           done
-          adb shell input keyevent 82 || true
-          adb devices
+          "$ADB" shell input keyevent 82 || true
+          "$ADB" devices
 
       - name: Start Metro for debug runtime
         shell: bash
         run: |
           set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          ADB="$SDK_ROOT/platform-tools/adb"
           nohup npx expo start --localhost --offline > qa-runtime/metro.log 2>&1 &
           for attempt in $(seq 1 60); do
             if curl --silent --fail http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
@@ -133,38 +162,42 @@ jobs:
             fi
             sleep 2
           done
-          adb reverse tcp:8081 tcp:8081
+          "$ADB" reverse tcp:8081 tcp:8081
 
       - name: Install alpha APK
         shell: bash
         run: |
           set -euo pipefail
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          ADB="$SDK_ROOT/platform-tools/adb"
           APK='android/app/build/outputs/apk/debug/app-debug.apk'
           test -f "$APK"
-          adb install -r "$APK"
-          adb shell pm path "$ANDROID_PACKAGE"
-          adb shell pm grant "$ANDROID_PACKAGE" android.permission.RECORD_AUDIO || true
+          "$ADB" install -r "$APK"
+          "$ADB" shell pm path "$ANDROID_PACKAGE"
+          "$ADB" shell pm grant "$ANDROID_PACKAGE" android.permission.RECORD_AUDIO || true
 
       - name: Launch ConvoWeave and verify foreground process
         shell: bash
         run: |
           set -euo pipefail
-          adb logcat -c
-          adb shell monkey -p "$ANDROID_PACKAGE" -c android.intent.category.LAUNCHER 1
+          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
+          ADB="$SDK_ROOT/platform-tools/adb"
+          "$ADB" logcat -c
+          "$ADB" shell monkey -p "$ANDROID_PACKAGE" -c android.intent.category.LAUNCHER 1
           sleep 18
 
-          PID="$(adb shell pidof "$ANDROID_PACKAGE" | tr -d '\r')"
+          PID="$("$ADB" shell pidof "$ANDROID_PACKAGE" | tr -d '\r')"
           if [ -z "$PID" ]; then
             echo 'ConvoWeave process is not running after launch.' >&2
-            adb shell dumpsys activity activities >&2 || true
+            "$ADB" shell dumpsys activity activities >&2 || true
             exit 1
           fi
 
-          adb shell dumpsys activity activities > qa-runtime/activity.txt
-          adb logcat --pid="$PID" -d > qa-runtime/app-logcat.txt || true
-          adb exec-out screencap -p > qa-runtime/launch-screen.png
-          adb shell uiautomator dump /sdcard/convoweave-window.xml >/dev/null 2>&1 || true
-          adb pull /sdcard/convoweave-window.xml qa-runtime/window.xml >/dev/null 2>&1 || true
+          "$ADB" shell dumpsys activity activities > qa-runtime/activity.txt
+          "$ADB" logcat --pid="$PID" -d > qa-runtime/app-logcat.txt || true
+          "$ADB" exec-out screencap -p > qa-runtime/launch-screen.png
+          "$ADB" shell uiautomator dump /sdcard/convoweave-window.xml >/dev/null 2>&1 || true
+          "$ADB" pull /sdcard/convoweave-window.xml qa-runtime/window.xml >/dev/null 2>&1 || true
 
           if ! grep -q "$ANDROID_PACKAGE" qa-runtime/activity.txt; then
             echo 'ConvoWeave is not present in the resumed activity state.' >&2
@@ -184,7 +217,7 @@ jobs:
             echo "- Package: $ANDROID_PACKAGE"
             echo "- Git SHA: $GITHUB_SHA"
             echo "- Workflow run: $GITHUB_RUN_ID"
-            echo "- Emulator: Pixel 6 profile / Android API 35"
+            echo '- Emulator: Pixel 6 profile / Android API 35'
             echo '- APK: debug-signed internal alpha'
             echo '- Verified: install, package registration, process launch, resumed activity, no fatal launch error, runtime screenshot capture'
             echo '- Scope note: emulator QA does not replace physical-device microphone/interruption/restart validation.'
