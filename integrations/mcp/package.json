@@ -5,8 +5,8 @@
   "type": "module",
   "engines": { "node": ">=24" },
   "scripts": {
-    "start": "node server.mjs",
-    "check": "node --check server.mjs && node --check tools.mjs && node --check auth.mjs && node --check accountStore.mjs && node --check awsAccountStore.mjs && node --check accountApi.mjs && node --check accountTools.mjs",
+    "start": "node publicServer.mjs",
+    "check": "node --check server.mjs && node --check publicServer.mjs && node --check publicPages.mjs && node --check tools.mjs && node --check auth.mjs && node --check accountStore.mjs && node --check awsAccountStore.mjs && node --check accountApi.mjs && node --check accountTools.mjs",
     "test": "npm run check && node --test *.node-test.mjs"
   },
   "dependencies": {
