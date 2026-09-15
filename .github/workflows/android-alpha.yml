@@ -13,10 +13,11 @@ on:
     branches: [main]
     paths:
       - 'release/ALPHA_VERSION'
+      - '.github/workflows/android-alpha.yml'
   workflow_dispatch:
 
 permissions:
-  contents: read
+  contents: write
 
 concurrency:
   group: android-alpha-${{ github.ref }}
@@ -29,6 +30,8 @@ env:
 jobs:
   validate:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -57,6 +60,8 @@ jobs:
     if: github.event_name != 'pull_request'
     needs: validate
     runs-on: ubuntu-latest
+    permissions:
+      contents: write
     steps:
       - name: Checkout
         uses: actions/checkout@v7
@@ -114,3 +119,29 @@ jobs:
           path: dist/
           if-no-files-found: error
           retention-days: 30
+
+      - name: Publish GitHub prerelease
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < release/ALPHA_VERSION)"
+          TAG="v${VERSION}"
+          TITLE="ConvoWeave ${VERSION}"
+          NOTES="docs/releases/${VERSION}.md"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --prerelease
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --prerelease
+          fi
