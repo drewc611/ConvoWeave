@@ -1,0 +1,55 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="#F5F6F2"/>
+  <rect x="0" y="0" width="1400" height="68" fill="#FFFFFF"/>
+  <line x1="0" y1="68" x2="1400" y2="68" stroke="#E1E5DF"/>
+  <rect x="18" y="15" width="38" height="38" rx="12" fill="#F5F6F2"/>
+  <text x="37" y="43" text-anchor="middle" font-family="Arial" font-size="30" fill="#18201B">‹</text>
+  <text x="75" y="27" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#2E7D55">LIVE CAPTURE</text>
+  <text x="75" y="48" font-family="Inter,Arial" font-size="15" font-weight="900" fill="#18201B">Product Launch</text>
+  <rect x="1260" y="18" width="116" height="32" rx="16" fill="#E9F7EE"/>
+  <circle cx="1278" cy="34" r="5" fill="#2E7D55"/>
+  <text x="1290" y="38" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#1F5B3E">Local draft</text>
+
+  <text x="62" y="125" font-family="Inter,Arial" font-size="10" font-weight="900" letter-spacing="1.4" fill="#2E7D55">CONVOWEAVE LIVE</text>
+  <text x="62" y="168" font-family="Inter,Arial" font-size="35" font-weight="900" fill="#18201B">Stay in the conversation.</text>
+  <text x="62" y="198" font-family="Inter,Arial" font-size="14" fill="#748078">Record in the background, write only what you care about, and turn it into source-backed memory after the meeting.</text>
+
+  <rect x="62" y="234" width="890" height="580" rx="22" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="88" y="274" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#748078">MY NOTES</text>
+  <text x="88" y="307" font-family="Inter,Arial" font-size="24" font-weight="900" fill="#18201B">Write what matters.</text>
+  <rect x="770" y="257" width="155" height="28" rx="14" fill="#F5F6F2"/>
+  <circle cx="788" cy="271" r="5" fill="#2E7D55"/>
+  <text x="800" y="275" font-family="Inter,Arial" font-size="9" font-weight="800" fill="#4E5A52">Saved with draft</text>
+  <text x="88" y="340" font-family="Inter,Arial" font-size="12" fill="#748078">Use this like a normal notepad during the conversation.</text>
+  <line x1="88" y1="373" x2="926" y2="373" stroke="#EEF0EC"/>
+  <text x="88" y="415" font-family="Inter,Arial" font-size="16" fill="#18201B">• Confirm internal alpha scope after Android device QA.</text>
+  <text x="88" y="451" font-family="Inter,Arial" font-size="16" fill="#18201B">• Keep beta gated on all Critical test cases.</text>
+  <text x="88" y="487" font-family="Inter,Arial" font-size="16" fill="#18201B">• Need release screenshots and final store metadata.</text>
+  <text x="88" y="535" font-family="Inter,Arial" font-size="16" fill="#18201B">Question: what changed since the last launch review?</text>
+  <line x1="88" y1="756" x2="926" y2="756" stroke="#EEF0EC"/>
+  <text x="88" y="783" font-family="Inter,Arial" font-size="10" fill="#748078">238 characters · private draft context until review</text>
+
+  <rect x="982" y="234" width="356" height="300" rx="22" fill="#18201B"/>
+  <circle cx="1016" cy="275" r="11" fill="#49302F"/><circle cx="1016" cy="275" r="5" fill="#FF756D"/>
+  <text x="1036" y="279" font-family="Inter,Arial" font-size="10" font-weight="900" letter-spacing="1.2" fill="#B9C2BC">RECORDING</text>
+  <text x="1006" y="352" font-family="Inter,Arial" font-size="52" font-weight="900" fill="#FFFFFF">18:42</text>
+  <text x="1006" y="382" font-family="Inter,Arial" font-size="11" fill="#B9C2BC">Draft checkpoints save automatically.</text>
+  <rect x="1006" y="426" width="143" height="48" rx="12" fill="#2A332D"/>
+  <text x="1077" y="456" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="800" fill="#FFFFFF">Pause</text>
+  <rect x="1161" y="426" width="143" height="48" rx="12" fill="#FFFFFF"/>
+  <text x="1232" y="456" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="900" fill="#18201B">Finish</text>
+
+  <rect x="982" y="552" width="356" height="126" rx="18" fill="#F8ECDD" stroke="#EBD7B8"/>
+  <text x="1006" y="582" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#A96C2A">RECORDING NOTICE</text>
+  <text x="1006" y="609" font-family="Inter,Arial" font-size="14" font-weight="900" fill="#18201B">Keep consent explicit.</text>
+  <text x="1006" y="635" font-family="Inter,Arial" font-size="11" fill="#4E5A52">ConvoWeave only records after Start.</text>
+  <text x="1006" y="652" font-family="Inter,Arial" font-size="11" fill="#4E5A52">You remain responsible for required consent.</text>
+
+  <rect x="982" y="696" width="356" height="118" rx="18" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="1006" y="726" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#748078">AFTER THE MEETING</text>
+  <text x="1006" y="753" font-family="Inter,Arial" font-size="14" font-weight="900" fill="#18201B">Review before memory changes.</text>
+  <text x="1006" y="779" font-family="Inter,Arial" font-size="11" fill="#748078">Decisions and commitments stay proposals</text>
+  <text x="1006" y="796" font-family="Inter,Arial" font-size="11" fill="#748078">until you confirm them.</text>
+
+  <text x="62" y="858" font-family="Inter,Arial" font-size="11" fill="#748078">ConvoWeave 0.3.0-alpha.1 · live capture release preview derived from current UI components</text>
+</svg>

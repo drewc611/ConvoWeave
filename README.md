@@ -3,7 +3,9 @@
 ### Build & quality
 
 [![Main Stable](https://img.shields.io/badge/main-stable-success?style=for-the-badge)](https://github.com/drewc611/ConvoWeave/tree/main)
+[![Alpha](https://img.shields.io/badge/release-0.3.0--alpha.1-2E7D55?style=for-the-badge)](docs/releases/0.3.0-alpha.1.md)
 [![Mobile CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml)
+[![Android Alpha](https://github.com/drewc611/ConvoWeave/actions/workflows/android-alpha.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/android-alpha.yml)
 [![Backend CI](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml)
 [![MCP Integration CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml)
 [![Infrastructure CI](https://github.com/drewc611/ConvoWeave/actions/workflows/infra-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/infra-ci.yml)
@@ -49,6 +51,30 @@
 **The AI companion that remembers your meetings.**
 
 ConvoWeave is a mobile-first meeting memory and decision system. It preserves what changed across conversations, who committed to what, why decisions were made, which assumptions remain unverified, and where current statements conflict with earlier evidence.
+
+## UI preview
+
+### Suite dashboard
+
+![ConvoWeave suite dashboard](docs/assets/ui/dashboard.svg)
+
+The main workspace puts current decisions, open commitments, assumptions, contradictions, Private Sidecar state, meeting history, and the next capture action in one operational view.
+
+### Meeting workspace
+
+![ConvoWeave meeting workspace](docs/assets/ui/meeting-workspace.svg)
+
+The meeting workspace keeps durable memory and source evidence together. On desktop, memory and transcript are visible side-by-side. On mobile, they become focused Memory and Transcript tabs.
+
+### Live capture + notepad
+
+![ConvoWeave live capture](docs/assets/ui/live-capture.svg)
+
+Capture stays intentionally quiet: visible recording state, a real working notepad, restart-safe checkpoints, consent messaging, and a review gate before anything becomes durable memory.
+
+[See the full UI preview and visual-system notes →](docs/UI_PREVIEW.md)
+
+> The images above are release-preview renders derived from the current React Native components and theme. They are not being represented as signed-device screenshots. Physical Android/iOS screenshots will be added after the corresponding device-validation gate passes.
 
 ## Stable product
 
@@ -121,6 +147,7 @@ Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`.
 ## Architecture and operations docs
 
 - `CODEX.md`
+- `docs/UI_PREVIEW.md`
 - `docs/PRODUCT_STRATEGY.md`
 - `docs/DEVELOPMENT_WORKFLOW.md`
 - `docs/BACKEND_API.md`

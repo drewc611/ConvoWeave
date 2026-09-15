@@ -1,0 +1,74 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="#F5F6F2"/>
+  <rect x="0" y="0" width="1400" height="68" fill="#FFFFFF"/>
+  <line x1="0" y1="68" x2="1400" y2="68" stroke="#E1E5DF"/>
+  <rect x="18" y="15" width="38" height="38" rx="12" fill="#F5F6F2"/>
+  <text x="37" y="43" text-anchor="middle" font-family="Arial" font-size="30" fill="#18201B">‹</text>
+  <text x="74" y="26" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#2E7D55">PRODUCT LAUNCH</text>
+  <text x="74" y="48" font-family="Inter,Arial" font-size="15" font-weight="900" fill="#18201B">Launch readiness sync</text>
+  <rect x="1240" y="18" width="140" height="32" rx="16" fill="#E9F7EE"/>
+  <circle cx="1258" cy="34" r="5" fill="#2E7D55"/>
+  <text x="1270" y="38" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#1F5B3E">Source-backed</text>
+
+  <rect x="0" y="68" width="930" height="832" fill="#F5F6F2"/>
+  <rect x="930" y="68" width="470" height="832" fill="#FFFFFF"/>
+  <line x1="930" y1="68" x2="930" y2="900" stroke="#E1E5DF"/>
+
+  <text x="42" y="117" font-family="Inter,Arial" font-size="10" font-weight="900" letter-spacing="1.4" fill="#2E7D55">MEETING MEMORY</text>
+  <text x="42" y="157" font-family="Inter,Arial" font-size="34" font-weight="900" fill="#18201B">Launch readiness sync</text>
+  <text x="42" y="186" font-family="Inter,Arial" font-size="12" fill="#748078">Sep 14, 2026 · 42 min</text>
+  <rect x="795" y="110" width="92" height="28" rx="14" fill="#E9F7EE"/>
+  <text x="841" y="128" text-anchor="middle" font-family="Inter,Arial" font-size="9" font-weight="900" fill="#1F5B3E">REVIEWED</text>
+
+  <rect x="42" y="218" width="845" height="78" rx="16" fill="#EEF1FF" stroke="#D8DFFE"/>
+  <text x="62" y="243" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#5267D8">WHAT CHANGED</text>
+  <text x="62" y="269" font-family="Inter,Arial" font-size="14" font-weight="800" fill="#18201B">4 durable-memory changes from this meeting</text>
+  <text x="858" y="265" text-anchor="end" font-family="Arial" font-size="26" fill="#5267D8">→</text>
+
+  <g>
+    <rect x="42" y="316" width="198" height="72" rx="14" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="60" y="348" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">2</text><text x="60" y="370" font-family="Inter,Arial" font-size="10" fill="#748078">decisions</text>
+    <rect x="250" y="316" width="198" height="72" rx="14" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="268" y="348" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">1</text><text x="268" y="370" font-family="Inter,Arial" font-size="10" fill="#748078">commitment</text>
+    <rect x="458" y="316" width="198" height="72" rx="14" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="476" y="348" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">1</text><text x="476" y="370" font-family="Inter,Arial" font-size="10" fill="#748078">assumption</text>
+    <rect x="666" y="316" width="221" height="72" rx="14" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="684" y="348" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">1</text><text x="684" y="370" font-family="Inter,Arial" font-size="10" fill="#748078">conflict</text>
+  </g>
+
+  <text x="42" y="432" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#748078">DECISIONS</text>
+  <text x="42" y="461" font-family="Inter,Arial" font-size="21" font-weight="900" fill="#18201B">What became true</text>
+  <rect x="42" y="480" width="845" height="114" rx="16" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="60" y="507" font-family="Inter,Arial" font-size="9" font-weight="900" fill="#2E7D55">ACTIVE</text>
+  <text x="60" y="536" font-family="Inter,Arial" font-size="14" font-weight="800" fill="#18201B">Ship the internal alpha after Android physical-device validation.</text>
+  <rect x="60" y="555" width="470" height="24" rx="8" fill="#F5F6F2"/>
+  <text x="72" y="571" font-family="Inter,Arial" font-size="10" fill="#4E5A52">Source: “We can ship alpha after device validation passes.”</text>
+
+  <text x="42" y="636" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.2" fill="#748078">COMMITMENTS</text>
+  <text x="42" y="665" font-family="Inter,Arial" font-size="21" font-weight="900" fill="#18201B">What people committed to</text>
+  <rect x="42" y="684" width="845" height="112" rx="16" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="60" y="711" font-family="Inter,Arial" font-size="9" font-weight="900" fill="#5267D8">OPEN</text>
+  <text x="60" y="740" font-family="Inter,Arial" font-size="14" font-weight="800" fill="#18201B">Finish QA evidence package before beta promotion.</text>
+  <text x="60" y="766" font-family="Inter,Arial" font-size="10" fill="#748078">Owner: Andrew · Due Sep 18</text>
+
+  <text x="960" y="116" font-family="Inter,Arial" font-size="9" font-weight="900" letter-spacing="1.3" fill="#748078">SOURCE</text>
+  <text x="960" y="146" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">Transcript</text>
+  <rect x="1320" y="112" width="44" height="25" rx="12" fill="#F5F6F2"/>
+  <text x="1342" y="129" text-anchor="middle" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#4E5A52">18</text>
+  <line x1="960" y1="167" x2="1364" y2="167" stroke="#EEF0EC"/>
+  <text x="960" y="205" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#2E7D55">Andrew</text><text x="1338" y="205" text-anchor="end" font-family="Inter,Arial" font-size="10" fill="#748078">12:48</text>
+  <text x="960" y="231" font-family="Inter,Arial" font-size="13" fill="#18201B">We can ship alpha after device validation passes.</text>
+  <line x1="960" y1="259" x2="1364" y2="259" stroke="#EEF0EC"/>
+  <text x="960" y="297" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#5267D8">Alex</text><text x="1338" y="297" text-anchor="end" font-family="Inter,Arial" font-size="10" fill="#748078">13:16</text>
+  <text x="960" y="323" font-family="Inter,Arial" font-size="13" fill="#18201B">The only blocker is physical-device QA evidence.</text>
+  <line x1="960" y1="351" x2="1364" y2="351" stroke="#EEF0EC"/>
+  <text x="960" y="389" font-family="Inter,Arial" font-size="10" font-weight="800" fill="#A96C2A">Jordan</text><text x="1338" y="389" text-anchor="end" font-family="Inter,Arial" font-size="10" fill="#748078">14:02</text>
+  <text x="960" y="415" font-family="Inter,Arial" font-size="13" fill="#18201B">Let’s treat beta as a separate promotion gate.</text>
+  <rect x="960" y="474" width="404" height="126" rx="16" fill="#E9F7EE"/>
+  <text x="980" y="503" font-family="Inter,Arial" font-size="11" font-weight="900" fill="#1F5B3E">SOURCE PROOF</text>
+  <text x="980" y="532" font-family="Inter,Arial" font-size="12" fill="#18201B">Every durable memory item retains</text>
+  <text x="980" y="552" font-family="Inter,Arial" font-size="12" fill="#18201B">the exact evidence that supports it.</text>
+  <text x="980" y="579" font-family="Inter,Arial" font-size="10" fill="#4E5A52">Interpretation and observed source stay separate.</text>
+
+  <text x="42" y="850" font-family="Inter,Arial" font-size="11" fill="#748078">ConvoWeave 0.3.0-alpha.1 · meeting workspace release preview</text>
+</svg>
