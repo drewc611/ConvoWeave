@@ -1,0 +1,80 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1400" height="900" viewBox="0 0 1400 900">
+  <rect width="1400" height="900" fill="#F5F6F2"/>
+  <rect x="0" y="0" width="250" height="900" fill="#FFFFFF"/>
+  <line x1="250" y1="0" x2="250" y2="900" stroke="#E1E5DF"/>
+  <text x="32" y="54" font-family="Inter,Arial" font-size="24" font-weight="800" fill="#18201B">ConvoWeave</text>
+  <text x="32" y="96" font-family="Inter,Arial" font-size="10" font-weight="800" letter-spacing="1.5" fill="#748078">WORKSPACE</text>
+  <rect x="20" y="116" width="210" height="42" rx="12" fill="#E9F7EE"/>
+  <text x="42" y="143" font-family="Inter,Arial" font-size="14" font-weight="800" fill="#1F5B3E">Today</text>
+  <g font-family="Inter,Arial" font-size="14" fill="#4E5A52">
+    <text x="42" y="196">Decisions</text><text x="198" y="196" text-anchor="end">8</text>
+    <text x="42" y="238">Commitments</text><text x="198" y="238" text-anchor="end">5</text>
+    <text x="42" y="280">Assumptions</text><text x="198" y="280" text-anchor="end">3</text>
+    <text x="42" y="322">Contradictions</text><text x="198" y="322" text-anchor="end">1</text>
+    <text x="42" y="364">Private Sidecar</text><text x="198" y="364" text-anchor="end">4</text>
+  </g>
+  <rect x="22" y="790" width="206" height="82" rx="16" fill="#F5F6F2"/>
+  <circle cx="43" cy="817" r="6" fill="#2E7D55"/>
+  <text x="57" y="821" font-family="Inter,Arial" font-size="11" font-weight="800" fill="#18201B">Local-first workspace</text>
+  <text x="42" y="844" font-family="Inter,Arial" font-size="10" fill="#748078">Private notes stay private</text>
+  <text x="42" y="858" font-family="Inter,Arial" font-size="10" fill="#748078">until promoted.</text>
+
+  <text x="292" y="62" font-family="Inter,Arial" font-size="10" font-weight="800" letter-spacing="1.3" fill="#2E7D55">TODAY · MONDAY, SEPTEMBER 14</text>
+  <text x="292" y="104" font-family="Inter,Arial" font-size="34" font-weight="900" fill="#18201B">Product Launch</text>
+  <text x="292" y="134" font-family="Inter,Arial" font-size="14" fill="#748078">Everything that changed, everything still open, and the source behind it.</text>
+
+  <text x="292" y="183" font-family="Inter,Arial" font-size="10" font-weight="800" letter-spacing="1.2" fill="#748078">THREAD</text>
+  <rect x="292" y="199" width="132" height="34" rx="17" fill="#18201B"/>
+  <text x="358" y="221" text-anchor="middle" font-family="Inter,Arial" font-size="12" font-weight="800" fill="#FFFFFF">Product Launch</text>
+  <rect x="434" y="199" width="112" height="34" rx="17" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="490" y="221" text-anchor="middle" font-family="Inter,Arial" font-size="12" fill="#4E5A52">Leadership</text>
+  <rect x="556" y="199" width="116" height="34" rx="17" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="614" y="221" text-anchor="middle" font-family="Inter,Arial" font-size="12" fill="#4E5A52">Architecture</text>
+
+  <rect x="292" y="260" width="742" height="120" rx="20" fill="#18201B"/>
+  <circle cx="338" cy="320" r="24" fill="#2A332D"/><circle cx="338" cy="320" r="9" fill="#9BE6B9"/>
+  <text x="382" y="298" font-family="Inter,Arial" font-size="10" font-weight="800" letter-spacing="1.2" fill="#9BE6B9">CAPTURE</text>
+  <text x="382" y="327" font-family="Inter,Arial" font-size="23" font-weight="900" fill="#FFFFFF">Start a meeting</text>
+  <text x="382" y="352" font-family="Inter,Arial" font-size="12" fill="#B9C2BC">Record directly into Product Launch.</text>
+  <text x="996" y="331" text-anchor="end" font-family="Arial" font-size="28" fill="#9BE6B9">→</text>
+
+  <g>
+    <rect x="292" y="402" width="232" height="104" rx="18" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="316" y="443" font-family="Inter,Arial" font-size="30" font-weight="900" fill="#18201B">8</text>
+    <text x="316" y="468" font-family="Inter,Arial" font-size="13" font-weight="800" fill="#18201B">Active decisions</text>
+    <text x="316" y="488" font-family="Inter,Arial" font-size="11" fill="#2E7D55">Current truth</text>
+    <rect x="537" y="402" width="232" height="104" rx="18" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="561" y="443" font-family="Inter,Arial" font-size="30" font-weight="900" fill="#18201B">5</text>
+    <text x="561" y="468" font-family="Inter,Arial" font-size="13" font-weight="800" fill="#18201B">Open commitments</text>
+    <text x="561" y="488" font-family="Inter,Arial" font-size="11" fill="#B04F48">1 overdue</text>
+    <rect x="782" y="402" width="252" height="104" rx="18" fill="#FFFFFF" stroke="#E1E5DF"/>
+    <text x="806" y="443" font-family="Inter,Arial" font-size="30" font-weight="900" fill="#18201B">3</text>
+    <text x="806" y="468" font-family="Inter,Arial" font-size="13" font-weight="800" fill="#18201B">Assumptions</text>
+    <text x="806" y="488" font-family="Inter,Arial" font-size="11" fill="#A96C2A">Need validation</text>
+  </g>
+
+  <text x="292" y="558" font-family="Inter,Arial" font-size="10" font-weight="800" letter-spacing="1.2" fill="#748078">CONVERSATION HISTORY</text>
+  <text x="292" y="587" font-family="Inter,Arial" font-size="22" font-weight="900" fill="#18201B">Recent meetings</text>
+  <rect x="292" y="606" width="742" height="76" rx="16" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <rect x="309" y="622" width="72" height="44" rx="12" fill="#F5F6F2"/>
+  <text x="345" y="649" text-anchor="middle" font-family="Inter,Arial" font-size="11" font-weight="800" fill="#4E5A52">Today</text>
+  <text x="402" y="637" font-family="Inter,Arial" font-size="14" font-weight="800" fill="#18201B">Launch readiness sync</text>
+  <text x="402" y="658" font-family="Inter,Arial" font-size="11" fill="#748078">42 min · 2:30 PM</text>
+  <rect x="888" y="625" width="66" height="24" rx="12" fill="#E9F7EE"/>
+  <text x="921" y="641" text-anchor="middle" font-family="Inter,Arial" font-size="9" font-weight="800" fill="#1F5B3E">REVIEWED</text>
+  <rect x="963" y="625" width="57" height="24" rx="12" fill="#EEF1FF"/>
+  <text x="991" y="641" text-anchor="middle" font-family="Inter,Arial" font-size="9" font-weight="800" fill="#5267D8">4 changes</text>
+
+  <rect x="1070" y="260" width="290" height="246" rx="20" fill="#FFFFFF" stroke="#E1E5DF"/>
+  <text x="1094" y="294" font-family="Inter,Arial" font-size="9" font-weight="800" letter-spacing="1.2" fill="#748078">MEMORY PULSE</text>
+  <text x="1094" y="322" font-family="Inter,Arial" font-size="20" font-weight="900" fill="#18201B">What needs attention</text>
+  <g font-family="Inter,Arial" font-size="12" fill="#4E5A52">
+    <text x="1094" y="366">Overdue commitments</text><text x="1335" y="366" text-anchor="end" font-weight="800" fill="#B04F48">1</text>
+    <line x1="1094" y1="382" x2="1336" y2="382" stroke="#EEF0EC"/>
+    <text x="1094" y="414">Proposed contradictions</text><text x="1335" y="414" text-anchor="end" font-weight="800" fill="#B04F48">1</text>
+    <line x1="1094" y1="430" x2="1336" y2="430" stroke="#EEF0EC"/>
+    <text x="1094" y="462">Untested assumptions</text><text x="1335" y="462" text-anchor="end" font-weight="800" fill="#A96C2A">3</text>
+  </g>
+
+  <text x="292" y="842" font-family="Inter,Arial" font-size="11" fill="#748078">ConvoWeave 0.3.0-alpha.1 · release preview derived from current UI components</text>
+</svg>
