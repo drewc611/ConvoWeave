@@ -30,6 +30,7 @@ env:
   CI: '1'
   EXPO_NO_TELEMETRY: '1'
   ANDROID_PACKAGE: com.convoweave.mobile
+  ANDROID_AVD_HOME: ${{ github.workspace }}/.android/avd
 
 jobs:
   emulator_smoke:
@@ -88,6 +89,7 @@ jobs:
 
           test -n "$SDKMANAGER" && test -x "$SDKMANAGER"
           test -n "$AVDMANAGER" && test -x "$AVDMANAGER"
+          mkdir -p "$ANDROID_AVD_HOME"
 
           yes | "$SDKMANAGER" --licenses >/dev/null || true
           "$SDKMANAGER" \
@@ -102,6 +104,8 @@ jobs:
             --package 'system-images;android-35;google_apis;x86_64' \
             --device 'pixel_6'
 
+          test -f "$ANDROID_AVD_HOME/convoweave-ci.ini"
+          "$SDK_ROOT/emulator/emulator" -list-avds | grep -Fx 'convoweave-ci'
           echo "$SDK_ROOT/platform-tools" >> "$GITHUB_PATH"
           echo "$SDK_ROOT/emulator" >> "$GITHUB_PATH"
 
@@ -114,8 +118,11 @@ jobs:
           EMULATOR="$SDK_ROOT/emulator/emulator"
           test -x "$ADB"
           test -x "$EMULATOR"
+          test -f "$ANDROID_AVD_HOME/convoweave-ci.ini"
 
           mkdir -p qa-runtime
+          "$ADB" start-server
+
           ACCEL_ARGS='-accel off'
           if [ -e /dev/kvm ]; then
             sudo chmod 666 /dev/kvm
@@ -132,11 +139,33 @@ jobs:
             $ACCEL_ARGS \
             -wipe-data \
             > qa-runtime/emulator.log 2>&1 &
+          EMULATOR_PID=$!
 
-          timeout 300 "$ADB" wait-for-device
+          for attempt in $(seq 1 100); do
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+              echo 'Android emulator exited before becoming available.' >&2
+              cat qa-runtime/emulator.log >&2 || true
+              exit 1
+            fi
+            if "$ADB" devices | grep -Eq '^emulator-[0-9]+[[:space:]]+(device|offline)$'; then
+              break
+            fi
+            if [ "$attempt" -eq 100 ]; then
+              echo 'Android emulator did not appear in adb.' >&2
+              cat qa-runtime/emulator.log >&2 || true
+              exit 1
+            fi
+            sleep 3
+          done
+
           for attempt in $(seq 1 100); do
             if [ "$("$ADB" shell getprop sys.boot_completed 2>/dev/null | tr -d '\r')" = '1' ]; then
               break
+            fi
+            if ! kill -0 "$EMULATOR_PID" 2>/dev/null; then
+              echo 'Android emulator exited during boot.' >&2
+              cat qa-runtime/emulator.log >&2 || true
+              exit 1
             fi
             if [ "$attempt" -eq 100 ]; then
               echo 'Android emulator did not finish booting.' >&2
