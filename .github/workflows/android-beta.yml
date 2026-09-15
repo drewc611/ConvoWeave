@@ -1,0 +1,148 @@
+name: Android Beta Package
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'app.json'
+      - 'package.json'
+      - 'release/BETA_VERSION'
+      - 'docs/releases/**'
+      - '.github/workflows/android-beta.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'release/BETA_VERSION'
+      - 'app.json'
+      - '.github/workflows/android-beta.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: android-beta-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  CI: '1'
+  EXPO_NO_TELEMETRY: '1'
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Install dependencies
+        run: npm install --ignore-scripts
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit tests
+        run: npm test
+
+      - name: Release preflight
+        run: npm run release:check
+
+  build_android_beta:
+    if: github.event_name != 'pull_request'
+    needs: validate
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+        with:
+          persist-credentials: false
+
+      - name: Setup Node
+        uses: actions/setup-node@v7
+        with:
+          node-version: 24
+          package-manager-cache: false
+
+      - name: Setup Java
+        uses: actions/setup-java@v5
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Install dependencies
+        run: npm install --no-audit --no-fund
+
+      - name: Generate Android project
+        run: npx expo prebuild --platform android --clean --no-install
+
+      - name: Build debug-signed beta APK
+        working-directory: android
+        run: ./gradlew :app:assembleDebug --no-daemon
+
+      - name: Assemble beta package
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < release/BETA_VERSION)"
+          APP_VERSION="$(node -p "require('./app.json').expo.version")"
+          VERSION_CODE="$(node -p "require('./app.json').expo.android.versionCode")"
+          mkdir -p dist
+          cp android/app/build/outputs/apk/debug/app-debug.apk "dist/ConvoWeave-${VERSION}-Android.apk"
+          cp "docs/releases/${VERSION}.md" dist/RELEASE_NOTES.md
+          sha256sum "dist/ConvoWeave-${VERSION}-Android.apk" > dist/SHA256SUMS.txt
+          {
+            echo "ConvoWeave internal beta package"
+            echo "release=${VERSION}"
+            echo "app_version=${APP_VERSION}"
+            echo "android_version_code=${VERSION_CODE}"
+            echo "git_sha=${GITHUB_SHA}"
+            echo "workflow_run=${GITHUB_RUN_ID}"
+            echo "built_utc=$(date -u +%Y-%m-%dT%H:%M:%SZ)"
+            echo "artifact_type=debug-signed Android APK for internal beta testing"
+          } > dist/MANIFEST.txt
+
+      - name: Upload beta package
+        uses: actions/upload-artifact@v6
+        with:
+          name: ConvoWeave-0.3.0-beta.1-Android
+          path: dist/
+          if-no-files-found: error
+          retention-days: 30
+
+      - name: Publish GitHub prerelease
+        if: github.ref == 'refs/heads/main'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          VERSION="$(tr -d '\r\n' < release/BETA_VERSION)"
+          TAG="v${VERSION}"
+          TITLE="ConvoWeave ${VERSION}"
+          NOTES="docs/releases/${VERSION}.md"
+
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            gh release upload "$TAG" dist/* --clobber
+            gh release edit "$TAG" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --prerelease
+          else
+            gh release create "$TAG" dist/* \
+              --target "$GITHUB_SHA" \
+              --title "$TITLE" \
+              --notes-file "$NOTES" \
+              --prerelease
+          fi
