@@ -9,11 +9,11 @@
     "ios": {
       "supportsTablet": true,
       "bundleIdentifier": "com.convoweave.mobile",
-      "buildNumber": "2"
+      "buildNumber": "3"
     },
     "android": {
       "package": "com.convoweave.mobile",
-      "versionCode": 2
+      "versionCode": 3
     },
     "plugins": [
       [
