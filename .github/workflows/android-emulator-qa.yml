@@ -68,9 +68,17 @@ jobs:
       - name: Generate Android project
         run: npx expo prebuild --platform android --clean --no-install
 
-      - name: Build debug beta APK
+      - name: Build standalone beta APK
         working-directory: android
-        run: ./gradlew :app:assembleDebug --no-daemon
+        run: ./gradlew :app:assembleRelease --no-daemon
+
+      - name: Verify standalone bundle exists
+        shell: bash
+        run: |
+          set -euo pipefail
+          APK='android/app/build/outputs/apk/release/app-release.apk'
+          test -f "$APK"
+          unzip -l "$APK" | grep -Eq 'assets/index.android.bundle|assets/.+\.bundle'
 
       - name: Install Android emulator image
         shell: bash
@@ -177,33 +185,13 @@ jobs:
           "$ADB" shell input keyevent 82 || true
           "$ADB" devices
 
-      - name: Start Metro for debug runtime
+      - name: Install standalone beta APK
         shell: bash
         run: |
           set -euo pipefail
           SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
           ADB="$SDK_ROOT/platform-tools/adb"
-          nohup npx expo start --localhost --offline > qa-runtime/metro.log 2>&1 &
-          for attempt in $(seq 1 60); do
-            if curl --silent --fail http://127.0.0.1:8081/status | grep -q 'packager-status:running'; then
-              break
-            fi
-            if [ "$attempt" -eq 60 ]; then
-              echo 'Metro did not become ready.' >&2
-              cat qa-runtime/metro.log >&2 || true
-              exit 1
-            fi
-            sleep 2
-          done
-          "$ADB" reverse tcp:8081 tcp:8081
-
-      - name: Install beta APK
-        shell: bash
-        run: |
-          set -euo pipefail
-          SDK_ROOT="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-/usr/local/lib/android/sdk}}"
-          ADB="$SDK_ROOT/platform-tools/adb"
-          APK='android/app/build/outputs/apk/debug/app-debug.apk'
+          APK='android/app/build/outputs/apk/release/app-release.apk'
           test -f "$APK"
           "$ADB" install -r "$APK"
           "$ADB" shell pm path "$ANDROID_PACKAGE"
@@ -252,7 +240,8 @@ jobs:
             echo "- Git SHA: $GITHUB_SHA"
             echo "- Workflow run: $GITHUB_RUN_ID"
             echo '- Emulator: Pixel 6 profile / Android API 35'
-            echo '- APK: debug-signed internal beta candidate'
+            echo '- APK: standalone release-mode internal beta candidate'
+            echo '- JavaScript bundle: embedded; no Metro runtime dependency'
             echo '- Verified: install, package registration, process launch, resumed activity, no fatal launch error, runtime screenshot capture'
             echo '- Scope note: emulator QA does not replace physical-device microphone/interruption/restart validation.'
           } > qa-runtime/QA_RESULT.md
