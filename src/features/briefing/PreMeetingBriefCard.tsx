@@ -112,7 +112,7 @@ const styles = StyleSheet.create({
     color: colors.mutedDark,
     fontSize: 12,
     lineHeight: 18,
-    fontWeight: '650' as '700',
+    fontWeight: '700',
   },
   empty: {
     color: colors.muted,
