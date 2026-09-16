@@ -3,15 +3,17 @@
 ### Build & quality
 
 [![Main Stable](https://img.shields.io/badge/main-stable-success?style=for-the-badge)](https://github.com/drewc611/ConvoWeave/tree/main)
-[![Alpha](https://img.shields.io/badge/release-0.3.0--alpha.1-2E7D55?style=for-the-badge)](docs/releases/0.3.0-alpha.1.md)
+[![Beta](https://img.shields.io/badge/release-0.3.0--beta.1-2E7D55?style=for-the-badge)](docs/releases/0.3.0-beta.1.md)
 [![Mobile CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mobile-ci.yml)
-[![Android Alpha](https://github.com/drewc611/ConvoWeave/actions/workflows/android-alpha.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/android-alpha.yml)
+[![Android Beta](https://github.com/drewc611/ConvoWeave/actions/workflows/android-beta.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/android-beta.yml)
+[![Android Emulator QA](https://github.com/drewc611/ConvoWeave/actions/workflows/android-emulator-qa.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/android-emulator-qa.yml)
 [![Backend CI](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/backend-ci.yml)
 [![MCP Integration CI](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/mcp-ci.yml)
 [![Infrastructure CI](https://github.com/drewc611/ConvoWeave/actions/workflows/infra-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/infra-ci.yml)
 [![Security CI](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/security-ci.yml)
 [![CodeQL](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/codeql.yml)
 [![Dependency Review](https://github.com/drewc611/ConvoWeave/actions/workflows/dependency-review.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/dependency-review.yml)
+[![Agent Workflow Compile](https://github.com/drewc611/ConvoWeave/actions/workflows/agentic-compile.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/agentic-compile.yml)
 [![Android Debug APK](https://github.com/drewc611/ConvoWeave/actions/workflows/build-debug-apk.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/build-debug-apk.yml)
 [![Container Publish](https://github.com/drewc611/ConvoWeave/actions/workflows/container-publish.yml/badge.svg?branch=main)](https://github.com/drewc611/ConvoWeave/actions/workflows/container-publish.yml)
 
@@ -25,6 +27,7 @@
 ![MCP](https://img.shields.io/badge/MCP-remote%20server-5C5CFF)
 ![OAuth](https://img.shields.io/badge/OAuth%202.0%20%2F%20OIDC-scoped-success)
 ![AWS](https://img.shields.io/badge/AWS-production%20stack%20in%20progress-FF9900?logo=amazonaws&logoColor=white)
+![GitHub Agents](https://img.shields.io/badge/GitHub%20Agents-governed-181717?logo=github&logoColor=white)
 ![Proprietary](https://img.shields.io/badge/license-proprietary-critical)
 
 ### Integrations & distribution
@@ -33,6 +36,7 @@
 [![Claude Connector](https://img.shields.io/badge/Claude%20Connector-submission%20prepared-D97757)](integrations/claude/SUBMISSION.md)
 [![Claude Plugin](https://img.shields.io/badge/Claude%20Plugin-package%20ready-D97757)](integrations/claude)
 [![MCP Registry](https://img.shields.io/badge/MCP%20Registry-publish%20ready-5C5CFF)](integrations/mcp/server.registry.template.json)
+[![Android Beta](https://img.shields.io/badge/Android%20Beta-published-success?logo=android&logoColor=white)](https://github.com/drewc611/ConvoWeave/releases/tag/v0.3.0-beta.1)
 ![Apple App Store](https://img.shields.io/badge/Apple%20App%20Store-pending-lightgrey?logo=apple)
 ![TestFlight](https://img.shields.io/badge/TestFlight-pending-lightgrey?logo=apple)
 ![Google Play](https://img.shields.io/badge/Google%20Play-pending-lightgrey?logo=googleplay)
@@ -51,6 +55,16 @@
 **The AI companion that remembers your meetings.**
 
 ConvoWeave is a mobile-first meeting memory and decision system. It preserves what changed across conversations, who committed to what, why decisions were made, which assumptions remain unverified, and where current statements conflict with earlier evidence.
+
+## Current beta
+
+`0.3.0-beta.1` is the current internal Android beta candidate.
+
+The published Android APK is a standalone release-mode build with the React Native JavaScript bundle embedded. It is intended for internal physical-device testing and does not require a Metro development server. The GitHub prerelease is not the final Google Play signing artifact.
+
+Automated Android qualification includes native generation, release-mode APK build, embedded bundle verification, emulator install/launch, package registration, resumed-activity verification, fatal launch scanning, and runtime evidence capture.
+
+Physical Android and iOS device testing remains a separate release gate in [Issue #5](https://github.com/drewc611/ConvoWeave/issues/5).
 
 ## UI preview
 
@@ -92,7 +106,7 @@ Remote processing is optional per meeting and does not replace human review.
 
 ## Backend platform
 
-`main` now includes production-shaped backend boundaries for:
+`main` includes production-shaped backend boundaries for:
 
 - development / preview / production configuration
 - preview OpenAI transcription and structured extraction behind a replaceable provider adapter
@@ -115,6 +129,35 @@ ConvoWeave exposes a shared remote MCP service for host integrations. The same s
 
 Private Sidecar notes are excluded from account sync and connector tools.
 
+## GitHub-native agent operations
+
+ConvoWeave includes a governed repository-native engineering team:
+
+- CEO Agent
+- Chief Architect Agent
+- Product Agent
+- Mobile Engineering Agent
+- Backend & MCP Agent
+- Security & Privacy Agent
+- QA & Release Agent
+- DevOps & SRE Agent
+
+The specialists are coordinated by one CEO-led GitHub Agentic Workflow rather than independent competing schedules.
+
+The harness enforces:
+
+- read-only agent runtime permissions
+- bounded safe-output writes
+- at most one implementation objective and one draft PR per run
+- no agent self-merge
+- no automated changes to `.github/**`, `LICENSE`, signing/store/account/admin surfaces, credentials, or unlisted paths
+- independent Mobile CI, Security CI, CodeQL, CODEOWNERS, release checks, and human merge authority
+- pinned `gh-aw v0.88.7` compilation with source/lockfile synchronization validation
+
+See `AGENTS.md`, `docs/AGENT_OPERATING_MODEL.md`, `docs/AGENT_GUARDRAILS.md`, `docs/DAILY_AGENT_CADENCE.md`, `docs/GITHUB_AGENT_TEAM.md`, and Executive Program Board Issue #57.
+
+The compiled workflow is present on `main`. Runtime activation still requires the owner-only `COPILOT_GITHUB_TOKEN` Actions secret and one successful manual smoke run tracked in Issue #60. Tokens must never be placed in source, issues, logs, or chat.
+
 ## Preview deployment
 
 The backend is distributed as a container. After Backend CI succeeds on `main`, GitHub Actions can publish validated images to:
@@ -123,6 +166,8 @@ The backend is distributed as a container. After Backend CI succeeds on `main`, 
 - `ghcr.io/drewc611/convoweave-backend:sha-<commit>`
 
 The immutable SHA tag is the deployment/rollback reference. `deploy/docker-compose.preview.yml` is the portable preview runtime with durable storage and runtime-only configuration.
+
+The public ConvoWeave service and release-support pages are currently served from the existing preview deployment. Public privacy, support, and account-deletion URLs are no longer pending repository work.
 
 See `docs/PREVIEW_DEPLOYMENT.md`.
 
@@ -146,6 +191,7 @@ Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`.
 
 ## Architecture and operations docs
 
+- `AGENTS.md`
 - `CODEX.md`
 - `docs/UI_PREVIEW.md`
 - `docs/PRODUCT_STRATEGY.md`
@@ -155,8 +201,13 @@ Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`.
 - `docs/PREVIEW_BACKEND_STORAGE.md`
 - `docs/PREVIEW_DEPLOYMENT.md`
 - `docs/DEVICE_TEST_PLAN.md`
+- `docs/DEVICE_VALIDATION_REPORT_TEMPLATE.md`
 - `docs/STORE_RELEASE.md`
 - `docs/AWS_PRODUCTION_DEPLOYMENT.md`
+- `docs/AGENT_OPERATING_MODEL.md`
+- `docs/AGENT_GUARDRAILS.md`
+- `docs/DAILY_AGENT_CADENCE.md`
+- `docs/GITHUB_AGENT_TEAM.md`
 - `docs/adr/0001-runtime-environments-and-provider-boundary.md`
 - `docs/adr/0002-openai-preview-processing-provider.md`
 - `docs/adr/0003-preview-persistence-and-audio-retention.md`
@@ -180,9 +231,15 @@ Physical-device acceptance criteria are in `docs/DEVICE_TEST_PLAN.md`.
 8. Bearer tokens are never persisted in processing-session records.
 9. `main` remains the stable/releasable source of truth.
 
-## Remaining external release gates
+## Remaining release gates
 
-Repository engineering can package the product, but production distribution still requires account-holder authorization for AWS deployment, public domain/privacy/support endpoints, Apple/Google signing and store agreements, and authenticated marketplace submissions.
+Repository-side beta packaging and automated Android emulator qualification are complete. The remaining release gates are evidence-based external or owner-controlled steps:
+
+- physical Android and iOS device validation in Issue #5
+- Expo/EAS project connection and signed Apple/Google internal-distribution builds in Issue #3
+- GitHub repository visibility/security administration in Issue #4
+- GitHub agent runtime token plus one guarded manual smoke run in Issue #60
+- production cloud/account authorization where required for the final deployment model
 
 Do not commit store credentials, signing material, Expo tokens, provider secrets, recordings, transcripts, or user meeting data.
 
