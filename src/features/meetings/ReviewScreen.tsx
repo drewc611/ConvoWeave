@@ -194,7 +194,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
   const finish = async () => {
     const meaningful = proposals.filter((proposal) => proposal.statement.trim());
     if (!notes.trim() && meaningful.length === 0) {
-      setError('Add meeting notes or at least one decision, commitment, or assumption.');
+      setError('Add meeting notes or at least one decision, commitment, assumption, or question.');
       return;
     }
 
@@ -218,6 +218,13 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
   const activePriorDecisions = priorDecisions.filter((decision) => decision.status === 'active');
   const canProcessRemotely = runtimeConfig ? canUsePreviewRemoteProcessing(runtimeConfig, meeting, previewAccessToken) : false;
 
+  const placeholderFor = (proposal: DraftProposal) => {
+    if (proposal.kind === 'decision') return 'What was decided?';
+    if (proposal.kind === 'commitment') return 'What was promised?';
+    if (proposal.kind === 'question') return 'What still needs an answer?';
+    return 'What assumption needs to remain visible?';
+  };
+
   return (
     <Screen>
       <Header
@@ -225,7 +232,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
         title="Save what actually happened."
         body={remotePreviewEnabled
           ? 'Manual review remains available. Preview remote processing runs only after you explicitly approve this meeting upload, and every generated item still requires human review.'
-          : 'Enter or paste the real notes, then capture the decisions, commitments, and assumptions you want ConvoWeave to remember.'}
+          : 'Enter or paste the real notes, then capture the decisions, commitments, assumptions, and open questions you want ConvoWeave to remember.'}
       />
 
       {remotePreviewEnabled ? (
@@ -274,6 +281,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
         <AddButton label="+ Decision" onPress={() => addProposal('decision')} />
         <AddButton label="+ Commitment" onPress={() => addProposal('commitment')} />
         <AddButton label="+ Assumption" onPress={() => addProposal('assumption')} />
+        <AddButton label="+ Question" onPress={() => addProposal('question')} />
       </View>
 
       {proposals.map((proposal) => (
@@ -296,7 +304,7 @@ export function ReviewScreen({ meeting, providers: _providers, initialReview, pr
             multiline
             value={proposal.statement}
             onChangeText={(statement) => patch(proposal.id, { statement })}
-            placeholder={proposal.kind === 'decision' ? 'What was decided?' : proposal.kind === 'commitment' ? 'What was promised?' : 'What assumption needs to remain visible?'}
+            placeholder={placeholderFor(proposal)}
             placeholderTextColor={colors.muted}
             style={styles.statementInput}
           />
