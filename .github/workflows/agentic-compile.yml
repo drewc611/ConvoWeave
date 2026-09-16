@@ -46,10 +46,30 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: |
           set -euo pipefail
-          if git diff --quiet -- .github/workflows/*.lock.yml; then
+          shopt -s nullglob
+          lockfiles=(.github/workflows/*.lock.yml)
+          if [ ${#lockfiles[@]} -eq 0 ]; then
+            echo 'No compiled lockfiles were produced.' >&2
+            exit 1
+          fi
+
+          changed=0
+          for file in "${lockfiles[@]}"; do
+            if ! git ls-files --error-unmatch "$file" >/dev/null 2>&1; then
+              changed=1
+              break
+            fi
+            if ! git diff --quiet -- "$file"; then
+              changed=1
+              break
+            fi
+          done
+
+          if [ "$changed" -eq 0 ]; then
             echo 'Compiled lockfiles are current.'
             exit 0
           fi
+
           branch="automation/agentic-lockfiles-${GITHUB_RUN_ID}"
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
