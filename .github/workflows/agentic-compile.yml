@@ -1,3 +1,4 @@
+# Read-only compiler gate. Do not grant workflow-file write authority to this job.
 name: Compile Agentic Workflows
 
 on:
