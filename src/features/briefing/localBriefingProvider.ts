@@ -1,4 +1,4 @@
-import type { Assumption, Commitment, Contradiction, Decision } from '../../models/domain';
+import type { Assumption, Commitment, Contradiction, Decision, Question } from '../../models/domain';
 import type { BriefingProvider } from '../../services/providers';
 
 export type ThreadBriefSnapshot = {
@@ -6,6 +6,7 @@ export type ThreadBriefSnapshot = {
   decisions: Decision[];
   commitments: Commitment[];
   assumptions: Assumption[];
+  questions: Question[];
   contradictions: Contradiction[];
 };
 
@@ -54,6 +55,14 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
     add(`${due ? 'Validate now' : 'Validate assumption'}: ${assumption.statement}`);
   }
 
+  const openQuestions = snapshot.questions
+    .filter((item) => item.status === 'open')
+    .sort((left, right) => parsedTime(left.createdAt) - parsedTime(right.createdAt));
+
+  for (const question of openQuestions.slice(0, 1)) {
+    add(`Resolve question: ${question.statement}`);
+  }
+
   const activeDecisions = snapshot.decisions
     .filter((item) => item.status === 'active')
     .sort((left, right) => parsedTime(right.createdAt) - parsedTime(left.createdAt));
@@ -71,7 +80,7 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
   }
 
   if (bullets.length === 0) {
-    bullets.push('No reviewed decisions, commitments, assumptions, or contradictions need attention in this thread yet.');
+    bullets.push('No reviewed decisions, commitments, assumptions, questions, or contradictions need attention in this thread yet.');
   }
 
   return {
