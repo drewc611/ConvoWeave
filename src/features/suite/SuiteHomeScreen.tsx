@@ -21,6 +21,8 @@ import type {
   Thread,
 } from '../../models/domain';
 import { colors } from '../../theme';
+import { PreMeetingBriefCard } from '../briefing/PreMeetingBriefCard';
+import { createLocalBriefingProvider } from '../briefing/localBriefingProvider';
 
 type SuiteHomeScreenProps = {
   threads: Thread[];
@@ -90,6 +92,16 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
   const proposedContradictions = threadContradictions.filter((item) => item.status === 'proposed');
   const privateCount = threadPrivateNotes.filter((item) => !item.promotedAt).length;
   const overdueCommitments = openCommitments.filter((item) => item.dueAt && Date.parse(item.dueAt) < Date.now());
+  const briefingProvider = useMemo(
+    () => createLocalBriefingProvider((threadId) => ({
+      threadTitle: props.threads.find((thread) => thread.id === threadId)?.title,
+      decisions: props.decisions.filter((item) => item.threadId === threadId),
+      commitments: props.commitments.filter((item) => item.threadId === threadId),
+      assumptions: props.assumptions.filter((item) => item.threadId === threadId),
+      contradictions: props.contradictions.filter((item) => item.threadId === threadId),
+    })),
+    [props.assumptions, props.commitments, props.contradictions, props.decisions, props.threads],
+  );
 
   return (
     <SafeAreaView style={styles.safe}>
@@ -250,6 +262,8 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
             </View>
 
             <View style={[styles.rightRail, !desktop && styles.rightRailMobile]}>
+              <PreMeetingBriefCard threadId={selectedThreadId} provider={briefingProvider} />
+
               <View style={styles.railCard}>
                 <Text style={styles.railKicker}>MEMORY PULSE</Text>
                 <Text style={styles.railTitle}>What needs attention</Text>
