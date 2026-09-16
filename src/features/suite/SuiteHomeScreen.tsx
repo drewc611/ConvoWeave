@@ -24,6 +24,7 @@ import type {
 import { colors } from '../../theme';
 import { PreMeetingBriefCard } from '../briefing/PreMeetingBriefCard';
 import { createLocalBriefingProvider } from '../briefing/localBriefingProvider';
+import type { DecisionImpact } from '../decisions/decisionImpact';
 
 type SuiteHomeScreenProps = {
   threads: Thread[];
@@ -37,6 +38,7 @@ type SuiteHomeScreenProps = {
   contradictions: Contradiction[];
   privateNotes: PrivateNote[];
   changeSets: MeetingChangeSet[];
+  decisionImpacts: DecisionImpact[];
   pendingDraftMeeting: Meeting | null;
   pendingReviewMeeting: Meeting | null;
   onSelectThread: (threadId: string) => void;
@@ -49,6 +51,7 @@ type SuiteHomeScreenProps = {
   onOpenMeeting: (meeting: Meeting) => void;
   onOpenChanges: (meetingId: string) => void;
   onOpenDecisions: () => void;
+  onOpenDecisionImpacts: () => void;
   onOpenCommitments: () => void;
   onOpenAssumptions: () => void;
   onOpenQuestions: () => void;
@@ -96,6 +99,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
   const openQuestions = threadQuestions.filter((item) => item.status === 'open');
   const proposedContradictions = threadContradictions.filter((item) => item.status === 'proposed');
   const privateCount = threadPrivateNotes.filter((item) => !item.promotedAt).length;
+  const impactCount = props.decisionImpacts.length;
   const overdueCommitments = openCommitments.filter((item) => item.dueAt && Date.parse(item.dueAt) < Date.now());
   const briefingProvider = useMemo(
     () => createLocalBriefingProvider((threadId) => ({
@@ -119,6 +123,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
             <Text style={styles.navLabel}>WORKSPACE</Text>
             <NavItem label="Today" active />
             <NavItem label="Decisions" count={activeDecisions.length} onPress={props.onOpenDecisions} />
+            <NavItem label="Decision Impacts" count={impactCount} onPress={props.onOpenDecisionImpacts} />
             <NavItem label="Commitments" count={openCommitments.length} onPress={props.onOpenCommitments} />
             <NavItem label="Assumptions" count={untestedAssumptions.length} onPress={props.onOpenAssumptions} />
             <NavItem label="Open Questions" count={openQuestions.length} onPress={props.onOpenQuestions} />
@@ -149,6 +154,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
             <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.mobileNav}>
               <NavPill label="Today" active />
               <NavPill label="Decisions" onPress={props.onOpenDecisions} />
+              <NavPill label={`Impacts${impactCount ? ` ${impactCount}` : ''}`} onPress={props.onOpenDecisionImpacts} />
               <NavPill label="Commitments" onPress={props.onOpenCommitments} />
               <NavPill label="Assumptions" onPress={props.onOpenAssumptions} />
               <NavPill label="Questions" onPress={props.onOpenQuestions} />
@@ -275,6 +281,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
               <View style={styles.railCard}>
                 <Text style={styles.railKicker}>MEMORY PULSE</Text>
                 <Text style={styles.railTitle}>What needs attention</Text>
+                <AttentionRow label="Decision impacts" value={impactCount} tone={impactCount ? 'danger' : 'quiet'} onPress={props.onOpenDecisionImpacts} />
                 <AttentionRow label="Overdue commitments" value={overdueCommitments.length} tone={overdueCommitments.length ? 'danger' : 'quiet'} onPress={props.onOpenCommitments} />
                 <AttentionRow label="Proposed contradictions" value={proposedContradictions.length} tone={proposedContradictions.length ? 'danger' : 'quiet'} onPress={props.onOpenContradictions} />
                 <AttentionRow label="Untested assumptions" value={untestedAssumptions.length} tone={untestedAssumptions.length ? 'attention' : 'quiet'} onPress={props.onOpenAssumptions} />
@@ -285,6 +292,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
                 <Text style={styles.railKicker}>DURABLE MEMORY</Text>
                 <Text style={styles.railTitle}>Your operational layer</Text>
                 <MemoryLink title="Decision Ledger" body="Current, reversed and superseded decisions with source proof." onPress={props.onOpenDecisions} />
+                <MemoryLink title="Decision Impact Alerts" body="Open work explicitly linked to decisions that later changed state." onPress={props.onOpenDecisionImpacts} />
                 <MemoryLink title="Commitment Radar" body="Promises, owners, due dates and risk." onPress={props.onOpenCommitments} />
                 <MemoryLink title="Assumption Register" body="What still needs to be proven." onPress={props.onOpenAssumptions} />
                 <MemoryLink title="Open Questions" body="Unresolved questions that stay visible until explicitly closed." onPress={props.onOpenQuestions} />

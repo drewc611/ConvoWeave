@@ -1,17 +1,20 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import { SourceProof } from '../../components/SourceProof';
-import type { Commitment } from '../../models/domain';
+import type { Commitment, Decision } from '../../models/domain';
 import { colors } from '../../theme';
+import { DecisionDependencyEditor } from '../decisions/DecisionDependencyEditor';
 import { getCommitmentRisk, sortCommitmentsByAttention } from './commitmentRisk';
 
 export function CommitmentRadarScreen({
   commitments,
+  decisions,
   threadTitle,
   onUpdate,
   onBack,
 }: {
   commitments: Commitment[];
+  decisions: Decision[];
   threadTitle: string;
   onUpdate: (commitment: Commitment) => Promise<void>;
   onBack: () => void;
@@ -66,6 +69,14 @@ export function CommitmentRadarScreen({
               {commitment.dueAt ? ` · Due ${new Date(commitment.dueAt).toLocaleString()}` : ' · No due date confirmed'}
             </Text>
             <SourceProof evidence={commitment.evidence} compact />
+
+            {commitment.status === 'open' ? (
+              <DecisionDependencyEditor
+                decisions={decisions}
+                selectedDecisionIds={commitment.dependsOnDecisionIds}
+                onChange={(dependsOnDecisionIds) => { void onUpdate({ ...commitment, dependsOnDecisionIds, lastUpdatedAt: new Date().toISOString() }); }}
+              />
+            ) : null}
 
             <View style={styles.actions}>
               {commitment.status === 'open' ? (

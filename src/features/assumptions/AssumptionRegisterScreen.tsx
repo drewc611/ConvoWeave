@@ -1,16 +1,19 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import { SourceProof } from '../../components/SourceProof';
-import type { Assumption } from '../../models/domain';
+import type { Assumption, Decision } from '../../models/domain';
 import { colors } from '../../theme';
+import { DecisionDependencyEditor } from '../decisions/DecisionDependencyEditor';
 
 export function AssumptionRegisterScreen({
   assumptions,
+  decisions,
   threadTitle,
   onUpdate,
   onBack,
 }: {
   assumptions: Assumption[];
+  decisions: Decision[];
   threadTitle: string;
   onUpdate: (assumption: Assumption) => Promise<void>;
   onBack: () => void;
@@ -42,6 +45,14 @@ export function AssumptionRegisterScreen({
             </View>
             <Text style={styles.title}>{assumption.statement}</Text>
             <SourceProof evidence={assumption.evidence} compact />
+
+            {assumption.status === 'untested' ? (
+              <DecisionDependencyEditor
+                decisions={decisions}
+                selectedDecisionIds={assumption.dependsOnDecisionIds}
+                onChange={(dependsOnDecisionIds) => { void onUpdate({ ...assumption, dependsOnDecisionIds }); }}
+              />
+            ) : null}
 
             <View style={styles.actions}>
               <Pressable style={styles.supportButton} onPress={() => transition(assumption, 'supported')}>
