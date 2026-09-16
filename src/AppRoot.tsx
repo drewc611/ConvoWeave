@@ -4,6 +4,8 @@ import { CommitmentRadarScreen } from './features/commitments/CommitmentRadarScr
 import { contradictionFromProposal } from './features/contradictions/contradictionProposal';
 import { ContradictionReviewScreen } from './features/contradictions/ContradictionReviewScreen';
 import { buildDecisionDiff, type ThreadState } from './features/decisions/decisionDiff';
+import { buildDecisionImpacts } from './features/decisions/decisionImpact';
+import { DecisionImpactScreen } from './features/decisions/DecisionImpactScreen';
 import { DecisionLedgerScreen } from './features/decisions/DecisionLedgerScreen';
 import { supersedeDecision } from './features/decisions/decisionLineage';
 import { WhatChangedScreen } from './features/decisions/WhatChangedScreen';
@@ -40,7 +42,7 @@ import {
   ThreadRepository,
 } from './storage/repositories';
 
-type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'questions' | 'contradictions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'impacts' | 'commitments' | 'assumptions' | 'questions' | 'contradictions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -127,6 +129,7 @@ export function AppRoot() {
   const threadQuestions = questions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadContradictions = contradictions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadDecisionImpacts = buildDecisionImpacts(threadDecisions, threadCommitments, threadAssumptions, threadQuestions);
 
   const createThread = async () => {
     const title = newThreadTitle.trim();
@@ -405,9 +408,10 @@ export function AppRoot() {
     return <WhatChangedScreen changeSet={currentChangeSet} threadTitle={threadTitle} onBack={() => setRoute('home')} />;
   }
   if (route === 'decisions') return <DecisionLedgerScreen decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateDecision} onBack={() => setRoute('home')} />;
-  if (route === 'commitments') return <CommitmentRadarScreen commitments={threadCommitments} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
-  if (route === 'assumptions') return <AssumptionRegisterScreen assumptions={threadAssumptions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
-  if (route === 'questions') return <OpenQuestionsScreen questions={threadQuestions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateQuestion} onBack={() => setRoute('home')} />;
+  if (route === 'impacts') return <DecisionImpactScreen impacts={threadDecisionImpacts} threadTitle={selectedThread?.title ?? 'Meeting thread'} onBack={() => setRoute('home')} />;
+  if (route === 'commitments') return <CommitmentRadarScreen commitments={threadCommitments} decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
+  if (route === 'assumptions') return <AssumptionRegisterScreen assumptions={threadAssumptions} decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
+  if (route === 'questions') return <OpenQuestionsScreen questions={threadQuestions} decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateQuestion} onBack={() => setRoute('home')} />;
   if (route === 'contradictions') return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
   if (route === 'private-notes') return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
 
@@ -424,6 +428,7 @@ export function AppRoot() {
       contradictions={contradictions}
       privateNotes={privateNotes}
       changeSets={changeSets}
+      decisionImpacts={threadDecisionImpacts}
       pendingDraftMeeting={pendingDraftMeeting}
       pendingReviewMeeting={pendingReviewMeeting}
       onSelectThread={setSelectedThreadId}
@@ -436,6 +441,7 @@ export function AppRoot() {
       onOpenMeeting={openMeetingWorkspace}
       onOpenChanges={(meetingId) => { void openChanges(meetingId); }}
       onOpenDecisions={() => setRoute('decisions')}
+      onOpenDecisionImpacts={() => setRoute('impacts')}
       onOpenCommitments={() => setRoute('commitments')}
       onOpenAssumptions={() => setRoute('assumptions')}
       onOpenQuestions={() => setRoute('questions')}
