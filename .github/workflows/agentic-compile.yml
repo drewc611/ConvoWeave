@@ -2,17 +2,24 @@ name: Compile Agentic Workflows
 
 on:
   workflow_dispatch:
+  pull_request:
+    branches: [main]
+    paths:
+      - '.github/workflows/agent-*.md'
+      - '.github/workflows/agent-*.lock.yml'
+      - '.github/workflows/agentic-compile.yml'
   push:
     branches: [main]
     paths:
       - '.github/workflows/agent-*.md'
+      - '.github/workflows/agent-*.lock.yml'
       - '.github/workflows/agentic-compile.yml'
 
 permissions:
   contents: read
 
 concurrency:
-  group: agentic-compile
+  group: agentic-compile-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -68,7 +75,7 @@ jobs:
           if [ -n "$status" ]; then
             echo 'Compiled agentic lockfiles are missing or stale:' >&2
             printf '%s\n' "$status" >&2
-            echo 'Download the convoweave-agentic-lockfiles artifact, review the generated YAML, and commit the exact lockfiles through a normal PR.' >&2
+            echo 'Download the convoweave-agentic-lockfiles artifact, review the generated YAML, and commit the exact lockfiles through the same pull request.' >&2
             exit 1
           fi
           echo 'Compiled agentic lockfiles are committed and current.'
