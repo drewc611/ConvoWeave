@@ -7,6 +7,7 @@ import type {
   MeetingChangeSet,
   MeetingReview,
   PrivateNote,
+  Question,
   Thread,
 } from '../models/domain';
 import { getDatabase } from './database';
@@ -26,6 +27,7 @@ type EntityKind =
   | 'decision'
   | 'commitment'
   | 'assumption'
+  | 'question'
   | 'contradiction'
   | 'private-note';
 type EntityRow = { payload: string };
@@ -78,5 +80,6 @@ export class ThreadRepository extends SQLiteEntityRepository<Thread> { construct
 export class DecisionRepository extends SQLiteEntityRepository<Decision> { constructor() { super('decision'); } }
 export class CommitmentRepository extends SQLiteEntityRepository<Commitment> { constructor() { super('commitment'); } }
 export class AssumptionRepository extends SQLiteEntityRepository<Assumption> { constructor() { super('assumption'); } }
+export class QuestionRepository extends SQLiteEntityRepository<Question> { constructor() { super('question'); } }
 export class ContradictionRepository extends SQLiteEntityRepository<Contradiction> { constructor() { super('contradiction'); } }
 export class PrivateNoteRepository extends SQLiteEntityRepository<PrivateNote> { constructor() { super('private-note'); } }
