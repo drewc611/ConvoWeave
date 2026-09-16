@@ -61,3 +61,5 @@ If the repository is later moved under an organization with the applicable centr
 Never hand-edit the generated `.lock.yml`. Edit `agent-team-daily.md`, compile it with the pinned GitHub Agentic Workflows compiler path, review the generated lockfile, and commit the source and generated lockfile together through a normal pull request.
 
 `agentic-compile.yml` is intentionally read-only. It compiles the workflow, uploads the exact generated lockfile as a short-lived artifact, and fails when the committed lockfile is missing or stale. This prevents the compiler job from receiving workflow-file write authority.
+
+Copilot-authored pull requests can remain in GitHub's `action_required` state until repository-owner workflow execution is permitted. Treat that state as an execution-approval gate, not as evidence that tests failed, and never bypass it by weakening workflow or repository protections.
