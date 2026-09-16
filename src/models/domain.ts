@@ -70,6 +70,7 @@ export type Commitment = {
   evidence: EvidenceRef[];
   createdAt: ISODateTime;
   lastUpdatedAt: ISODateTime;
+  dependsOnDecisionIds?: string[];
 };
 
 export type Assumption = {
@@ -79,6 +80,7 @@ export type Assumption = {
   status: 'untested' | 'supported' | 'disproven' | 'expired';
   evidence: EvidenceRef[];
   reviewAt?: ISODateTime;
+  dependsOnDecisionIds?: string[];
 };
 
 export type Question = {
@@ -89,6 +91,7 @@ export type Question = {
   evidence: EvidenceRef[];
   createdAt: ISODateTime;
   resolvedAt?: ISODateTime;
+  dependsOnDecisionIds?: string[];
 };
 
 export type Contradiction = {
