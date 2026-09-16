@@ -1,16 +1,19 @@
 import { Pressable, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import { SourceProof } from '../../components/SourceProof';
-import type { Question } from '../../models/domain';
+import type { Decision, Question } from '../../models/domain';
 import { colors } from '../../theme';
+import { DecisionDependencyEditor } from '../decisions/DecisionDependencyEditor';
 
 export function OpenQuestionsScreen({
   questions,
+  decisions,
   threadTitle,
   onUpdate,
   onBack,
 }: {
   questions: Question[];
+  decisions: Decision[];
   threadTitle: string;
   onUpdate: (question: Question) => Promise<void>;
   onBack: () => void;
@@ -51,6 +54,14 @@ export function OpenQuestionsScreen({
             </View>
             <Text style={styles.title}>{question.statement}</Text>
             <SourceProof evidence={question.evidence} compact />
+
+            {open ? (
+              <DecisionDependencyEditor
+                decisions={decisions}
+                selectedDecisionIds={question.dependsOnDecisionIds}
+                onChange={(dependsOnDecisionIds) => { void onUpdate({ ...question, dependsOnDecisionIds }); }}
+              />
+            ) : null}
 
             <View style={styles.actions}>
               {open ? (
