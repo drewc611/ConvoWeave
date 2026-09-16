@@ -89,6 +89,19 @@ describe('local pre-meeting briefing', () => {
     expect(brief.bullets.length).toBeLessThanOrEqual(5);
   });
 
+  it('does not resurface questions after the user resolves them', () => {
+    const state = snapshot();
+    state.questions = state.questions.map((question) => ({
+      ...question,
+      status: 'resolved',
+      resolvedAt: '2026-09-16T11:30:00.000Z',
+    }));
+
+    const brief = buildLocalThreadBrief(state, NOW);
+
+    expect(brief.bullets.some((bullet) => bullet.includes('Who owns the final store metadata review?'))).toBe(false);
+  });
+
   it('returns a useful empty state without inventing meeting memory', () => {
     const brief = buildLocalThreadBrief({
       threadTitle: 'New thread',
