@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import type { Meeting, MeetingReview, PrivateNote, Thread } from '../src/models/domain';
+import type { Meeting, MeetingReview, PrivateNote, Question, Thread } from '../src/models/domain';
 
 const sqliteState = vi.hoisted(() => ({
   rows: new Map<string, { kind: string; id: string; payload: string; updatedAt: string }>(),
@@ -37,6 +37,7 @@ import {
   MeetingRepository,
   MeetingReviewRepository,
   PrivateNoteRepository,
+  QuestionRepository,
   ThreadRepository,
 } from '../src/storage/repositories';
 
@@ -112,6 +113,33 @@ describe('repository restart persistence', () => {
     expect(afterRestart).toEqual(review);
     expect(afterRestart?.proposals[0]?.state).toBe('accepted');
     expect(afterRestart?.transcript.segments[0]?.text).toBe('Keep the current launch date.');
+  });
+
+  it('preserves durable question state and source evidence across repository instances', async () => {
+    const question: Question = {
+      id: 'question-1',
+      threadId: 'thread-1',
+      statement: 'Who owns the final launch approval?',
+      status: 'open',
+      evidence: [
+        {
+          meetingId: 'meeting-1',
+          segmentIds: ['segment-question-1'],
+          speakerId: 'speaker-1',
+          startMs: 5000,
+          endMs: 6500,
+          quote: 'Who owns the final launch approval?',
+        },
+      ],
+      createdAt: '2026-09-13T18:12:00-04:00',
+    };
+
+    await new QuestionRepository().upsert(question);
+
+    const afterRestart = await new QuestionRepository().get(question.id);
+    expect(afterRestart).toEqual(question);
+    expect(afterRestart?.status).toBe('open');
+    expect(afterRestart?.evidence[0]?.quote).toBe('Who owns the final launch approval?');
   });
 
   it('preserves thread identity and private-note promotion state across repository instances', async () => {
