@@ -11,6 +11,7 @@ import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
 import { PrivateSidecarScreen } from './features/private-notes/PrivateSidecarScreen';
 import { promotePrivateNote, returnPrivateNoteToSidecar } from './features/private-notes/privateContext';
+import { OpenQuestionsScreen } from './features/questions/OpenQuestionsScreen';
 import { MeetingWorkspaceScreen } from './features/suite/MeetingWorkspaceScreen';
 import { SuiteHomeScreen } from './features/suite/SuiteHomeScreen';
 import type {
@@ -22,6 +23,7 @@ import type {
   MeetingChangeSet,
   MeetingReview,
   PrivateNote,
+  Question,
   Thread,
 } from './models/domain';
 import { mockProviders } from './services/mockProviders';
@@ -34,10 +36,11 @@ import {
   MeetingRepository,
   MeetingReviewRepository,
   PrivateNoteRepository,
+  QuestionRepository,
   ThreadRepository,
 } from './storage/repositories';
 
-type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'contradictions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'commitments' | 'assumptions' | 'questions' | 'contradictions' | 'private-notes';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -50,6 +53,7 @@ export function AppRoot() {
     decisions: new DecisionRepository(),
     commitments: new CommitmentRepository(),
     assumptions: new AssumptionRepository(),
+    questions: new QuestionRepository(),
     contradictions: new ContradictionRepository(),
     privateNotes: new PrivateNoteRepository(),
   }), []);
@@ -64,6 +68,7 @@ export function AppRoot() {
   const [decisions, setDecisions] = useState<Decision[]>([]);
   const [commitments, setCommitments] = useState<Commitment[]>([]);
   const [assumptions, setAssumptions] = useState<Assumption[]>([]);
+  const [questions, setQuestions] = useState<Question[]>([]);
   const [contradictions, setContradictions] = useState<Contradiction[]>([]);
   const [privateNotes, setPrivateNotes] = useState<PrivateNote[]>([]);
   const [changeSets, setChangeSets] = useState<MeetingChangeSet[]>([]);
@@ -74,11 +79,12 @@ export function AppRoot() {
   const [pendingReview, setPendingReview] = useState<MeetingReview | null>(null);
 
   const refresh = async () => {
-    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextContradictions, nextPrivateNotes, nextThreads, nextChangeSets] = await Promise.all([
+    let [nextMeetings, nextDecisions, nextCommitments, nextAssumptions, nextQuestions, nextContradictions, nextPrivateNotes, nextThreads, nextChangeSets] = await Promise.all([
       repositories.meetings.list(),
       repositories.decisions.list(),
       repositories.commitments.list(),
       repositories.assumptions.list(),
+      repositories.questions.list(),
       repositories.contradictions.list(),
       repositories.privateNotes.list(),
       repositories.threads.list(),
@@ -96,6 +102,7 @@ export function AppRoot() {
     setDecisions(nextDecisions);
     setCommitments(nextCommitments);
     setAssumptions(nextAssumptions);
+    setQuestions(nextQuestions);
     setContradictions(nextContradictions);
     setPrivateNotes(nextPrivateNotes);
     setThreads(nextThreads);
@@ -117,6 +124,7 @@ export function AppRoot() {
   const threadDecisions = decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadCommitments = commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadAssumptions = assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadQuestions = questions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadContradictions = contradictions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
 
@@ -286,6 +294,17 @@ export function AppRoot() {
         };
         await repositories.assumptions.upsert(assumption);
       }
+      if (proposal.kind === 'question') {
+        const question: Question = {
+          id: proposal.id,
+          threadId,
+          statement: proposal.statement,
+          status: 'open',
+          evidence: proposal.evidence,
+          createdAt: now,
+        };
+        await repositories.questions.upsert(question);
+      }
       if (proposal.kind === 'contradiction') {
         const contradiction = contradictionFromProposal(proposal, threadId);
         if (contradiction) await repositories.contradictions.upsert(contradiction);
@@ -339,6 +358,7 @@ export function AppRoot() {
   const updateDecision = async (decision: Decision) => { await repositories.decisions.upsert(decision); await refresh(); };
   const updateCommitment = async (commitment: Commitment) => { await repositories.commitments.upsert(commitment); await refresh(); };
   const updateAssumption = async (assumption: Assumption) => { await repositories.assumptions.upsert(assumption); await refresh(); };
+  const updateQuestion = async (question: Question) => { await repositories.questions.upsert(question); await refresh(); };
   const updateContradiction = async (contradiction: Contradiction) => { await repositories.contradictions.upsert(contradiction); await refresh(); };
 
   const createPrivateNote = async (body: string) => {
@@ -387,6 +407,7 @@ export function AppRoot() {
   if (route === 'decisions') return <DecisionLedgerScreen decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateDecision} onBack={() => setRoute('home')} />;
   if (route === 'commitments') return <CommitmentRadarScreen commitments={threadCommitments} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateCommitment} onBack={() => setRoute('home')} />;
   if (route === 'assumptions') return <AssumptionRegisterScreen assumptions={threadAssumptions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateAssumption} onBack={() => setRoute('home')} />;
+  if (route === 'questions') return <OpenQuestionsScreen questions={threadQuestions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateQuestion} onBack={() => setRoute('home')} />;
   if (route === 'contradictions') return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
   if (route === 'private-notes') return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
 
@@ -399,6 +420,7 @@ export function AppRoot() {
       decisions={decisions}
       commitments={commitments}
       assumptions={assumptions}
+      questions={questions}
       contradictions={contradictions}
       privateNotes={privateNotes}
       changeSets={changeSets}
@@ -416,6 +438,7 @@ export function AppRoot() {
       onOpenDecisions={() => setRoute('decisions')}
       onOpenCommitments={() => setRoute('commitments')}
       onOpenAssumptions={() => setRoute('assumptions')}
+      onOpenQuestions={() => setRoute('questions')}
       onOpenContradictions={() => setRoute('contradictions')}
       onOpenPrivateNotes={() => setRoute('private-notes')}
     />

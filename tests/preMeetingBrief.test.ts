@@ -52,6 +52,16 @@ function snapshot(): ThreadBriefSnapshot {
         reviewAt: '2026-09-16T10:00:00.000Z',
       },
     ],
+    questions: [
+      {
+        id: 'question-1',
+        threadId: 'thread-1',
+        statement: 'Who owns the final store metadata review?',
+        status: 'open',
+        evidence: [],
+        createdAt: '2026-09-14T12:00:00.000Z',
+      },
+    ],
     contradictions: [
       {
         id: 'contradiction-1',
@@ -67,15 +77,29 @@ function snapshot(): ThreadBriefSnapshot {
 }
 
 describe('local pre-meeting briefing', () => {
-  it('prioritizes unresolved contradictions and overdue work before context', () => {
+  it('prioritizes unresolved risk while retaining reviewed open questions', () => {
     const brief = buildLocalThreadBrief(snapshot(), NOW);
 
     expect(brief.title).toBe('Before Launch readiness');
     expect(brief.bullets[0]).toContain('Clarify before the meeting');
     expect(brief.bullets[1]).toBe('Overdue commitment: Validate the Android recovery flow.');
     expect(brief.bullets[2]).toBe('Validate now: The current retention default is acceptable.');
+    expect(brief.bullets).toContain('Resolve question: Who owns the final store metadata review?');
     expect(brief.bullets).toContain('Current decision: Ship the mobile memory loop before calendar integrations.');
     expect(brief.bullets.length).toBeLessThanOrEqual(5);
+  });
+
+  it('does not resurface questions after the user resolves them', () => {
+    const state = snapshot();
+    state.questions = state.questions.map((question) => ({
+      ...question,
+      status: 'resolved',
+      resolvedAt: '2026-09-16T11:30:00.000Z',
+    }));
+
+    const brief = buildLocalThreadBrief(state, NOW);
+
+    expect(brief.bullets.some((bullet) => bullet.includes('Who owns the final store metadata review?'))).toBe(false);
   });
 
   it('returns a useful empty state without inventing meeting memory', () => {
@@ -84,12 +108,13 @@ describe('local pre-meeting briefing', () => {
       decisions: [],
       commitments: [],
       assumptions: [],
+      questions: [],
       contradictions: [],
     }, NOW);
 
     expect(brief.title).toBe('Before New thread');
     expect(brief.bullets).toEqual([
-      'No reviewed decisions, commitments, assumptions, or contradictions need attention in this thread yet.',
+      'No reviewed decisions, commitments, assumptions, questions, or contradictions need attention in this thread yet.',
     ]);
   });
 

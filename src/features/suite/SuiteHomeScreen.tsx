@@ -18,6 +18,7 @@ import type {
   Meeting,
   MeetingChangeSet,
   PrivateNote,
+  Question,
   Thread,
 } from '../../models/domain';
 import { colors } from '../../theme';
@@ -32,6 +33,7 @@ type SuiteHomeScreenProps = {
   decisions: Decision[];
   commitments: Commitment[];
   assumptions: Assumption[];
+  questions: Question[];
   contradictions: Contradiction[];
   privateNotes: PrivateNote[];
   changeSets: MeetingChangeSet[];
@@ -49,6 +51,7 @@ type SuiteHomeScreenProps = {
   onOpenDecisions: () => void;
   onOpenCommitments: () => void;
   onOpenAssumptions: () => void;
+  onOpenQuestions: () => void;
   onOpenContradictions: () => void;
   onOpenPrivateNotes: () => void;
 };
@@ -82,6 +85,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
   const threadDecisions = props.decisions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadCommitments = props.commitments.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadAssumptions = props.assumptions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
+  const threadQuestions = props.questions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadContradictions = props.contradictions.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const threadPrivateNotes = props.privateNotes.filter((item) => !selectedThreadId || item.threadId === selectedThreadId);
   const changeSetByMeeting = new Map(props.changeSets.map((item) => [item.meetingId, item]));
@@ -89,6 +93,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
   const activeDecisions = threadDecisions.filter((item) => item.status === 'active');
   const openCommitments = threadCommitments.filter((item) => item.status === 'open');
   const untestedAssumptions = threadAssumptions.filter((item) => item.status === 'untested');
+  const openQuestions = threadQuestions.filter((item) => item.status === 'open');
   const proposedContradictions = threadContradictions.filter((item) => item.status === 'proposed');
   const privateCount = threadPrivateNotes.filter((item) => !item.promotedAt).length;
   const overdueCommitments = openCommitments.filter((item) => item.dueAt && Date.parse(item.dueAt) < Date.now());
@@ -98,9 +103,10 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
       decisions: props.decisions.filter((item) => item.threadId === threadId),
       commitments: props.commitments.filter((item) => item.threadId === threadId),
       assumptions: props.assumptions.filter((item) => item.threadId === threadId),
+      questions: props.questions.filter((item) => item.threadId === threadId),
       contradictions: props.contradictions.filter((item) => item.threadId === threadId),
     })),
-    [props.assumptions, props.commitments, props.contradictions, props.decisions, props.threads],
+    [props.assumptions, props.commitments, props.contradictions, props.decisions, props.questions, props.threads],
   );
 
   return (
@@ -115,6 +121,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
             <NavItem label="Decisions" count={activeDecisions.length} onPress={props.onOpenDecisions} />
             <NavItem label="Commitments" count={openCommitments.length} onPress={props.onOpenCommitments} />
             <NavItem label="Assumptions" count={untestedAssumptions.length} onPress={props.onOpenAssumptions} />
+            <NavItem label="Open Questions" count={openQuestions.length} onPress={props.onOpenQuestions} />
             <NavItem label="Contradictions" count={proposedContradictions.length} onPress={props.onOpenContradictions} />
             <NavItem label="Private Sidecar" count={privateCount} onPress={props.onOpenPrivateNotes} />
             <View style={styles.sidebarSpacer} />
@@ -144,6 +151,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
               <NavPill label="Decisions" onPress={props.onOpenDecisions} />
               <NavPill label="Commitments" onPress={props.onOpenCommitments} />
               <NavPill label="Assumptions" onPress={props.onOpenAssumptions} />
+              <NavPill label="Questions" onPress={props.onOpenQuestions} />
               <NavPill label="Conflicts" onPress={props.onOpenContradictions} />
               <NavPill label="Private" onPress={props.onOpenPrivateNotes} />
             </ScrollView>
@@ -270,6 +278,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
                 <AttentionRow label="Overdue commitments" value={overdueCommitments.length} tone={overdueCommitments.length ? 'danger' : 'quiet'} onPress={props.onOpenCommitments} />
                 <AttentionRow label="Proposed contradictions" value={proposedContradictions.length} tone={proposedContradictions.length ? 'danger' : 'quiet'} onPress={props.onOpenContradictions} />
                 <AttentionRow label="Untested assumptions" value={untestedAssumptions.length} tone={untestedAssumptions.length ? 'attention' : 'quiet'} onPress={props.onOpenAssumptions} />
+                <AttentionRow label="Open questions" value={openQuestions.length} tone={openQuestions.length ? 'attention' : 'quiet'} onPress={props.onOpenQuestions} />
               </View>
 
               <View style={styles.railCard}>
@@ -278,6 +287,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
                 <MemoryLink title="Decision Ledger" body="Current, reversed and superseded decisions with source proof." onPress={props.onOpenDecisions} />
                 <MemoryLink title="Commitment Radar" body="Promises, owners, due dates and risk." onPress={props.onOpenCommitments} />
                 <MemoryLink title="Assumption Register" body="What still needs to be proven." onPress={props.onOpenAssumptions} />
+                <MemoryLink title="Open Questions" body="Unresolved questions that stay visible until explicitly closed." onPress={props.onOpenQuestions} />
                 <MemoryLink title="Contradiction Review" body="Conflicts that require human resolution." onPress={props.onOpenContradictions} />
                 <MemoryLink title="Private Sidecar" body="Notes excluded from shared context until you promote them." onPress={props.onOpenPrivateNotes} />
               </View>

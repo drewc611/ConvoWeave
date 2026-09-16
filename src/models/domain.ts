@@ -81,6 +81,16 @@ export type Assumption = {
   reviewAt?: ISODateTime;
 };
 
+export type Question = {
+  id: string;
+  threadId: string;
+  statement: string;
+  status: 'open' | 'resolved';
+  evidence: EvidenceRef[];
+  createdAt: ISODateTime;
+  resolvedAt?: ISODateTime;
+};
+
 export type Contradiction = {
   id: string;
   threadId: string;
