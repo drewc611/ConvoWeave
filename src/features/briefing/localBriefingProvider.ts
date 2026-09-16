@@ -32,7 +32,7 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
     .filter((item) => item.status === 'proposed')
     .sort((left, right) => right.confidence - left.confidence);
 
-  for (const contradiction of contradictions) {
+  for (const contradiction of contradictions.slice(0, 1)) {
     add(`Clarify before the meeting: ${contradiction.explanation}`);
   }
 
@@ -41,7 +41,7 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
     .filter((item) => parsedTime(item.dueAt) < now)
     .sort((left, right) => parsedTime(left.dueAt) - parsedTime(right.dueAt));
 
-  for (const commitment of overdueCommitments) {
+  for (const commitment of overdueCommitments.slice(0, 2)) {
     add(`Overdue commitment: ${commitment.statement}`);
   }
 
@@ -49,7 +49,7 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
     .filter((item) => item.status === 'untested')
     .sort((left, right) => parsedTime(left.reviewAt) - parsedTime(right.reviewAt));
 
-  for (const assumption of assumptions) {
+  for (const assumption of assumptions.slice(0, 1)) {
     const due = parsedTime(assumption.reviewAt) <= now;
     add(`${due ? 'Validate now' : 'Validate assumption'}: ${assumption.statement}`);
   }
@@ -58,7 +58,7 @@ export function buildLocalThreadBrief(snapshot: ThreadBriefSnapshot, now = Date.
     .filter((item) => item.status === 'active')
     .sort((left, right) => parsedTime(right.createdAt) - parsedTime(left.createdAt));
 
-  for (const decision of activeDecisions) {
+  for (const decision of activeDecisions.slice(0, 1)) {
     add(`Current decision: ${decision.statement}`);
   }
 
