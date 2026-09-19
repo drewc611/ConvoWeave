@@ -5,6 +5,7 @@ import { Header, Screen, screenStyles } from '../../components/Screen';
 import type { AudioRetentionPolicy, PrivacySettings } from '../../models/domain';
 import { colors } from '../../theme';
 import { MeetingRepository, PrivacySettingsRepository } from '../../storage/repositories';
+import { UpcomingMeetingsScreen } from '../calendar/UpcomingMeetingsScreen';
 import { DEFAULT_PRIVACY_SETTINGS, eligibleCompletedAudio, withoutLocalAudio } from './retentionPolicy';
 
 const OPTIONS: { value: AudioRetentionPolicy; label: string; body: string }[] = [
@@ -27,6 +28,7 @@ export function PrivacySettingsScreen({
   const [eligibleCount, setEligibleCount] = useState(0);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [showCalendar, setShowCalendar] = useState(false);
 
   const refreshPreview = async (nextSettings = settings) => {
     const meetings = await meetingRepository.list();
@@ -90,6 +92,8 @@ export function PrivacySettingsScreen({
     }
   };
 
+  if (showCalendar) return <UpcomingMeetingsScreen onBack={() => setShowCalendar(false)} />;
+
   return (
     <Screen>
       <Header
@@ -97,6 +101,18 @@ export function PrivacySettingsScreen({
         title="Local data controls"
         body="Raw recording retention is separate from trusted meeting memory. Nothing is deleted silently."
       />
+
+      <View style={screenStyles.card}>
+        <Text style={styles.sectionTitle}>Integrations</Text>
+        <Text style={styles.body}>Device calendar access is optional, read-only and requested only when you open the calendar integration.</Text>
+        <Pressable style={styles.integrationButton} onPress={() => setShowCalendar(true)}>
+          <View style={{ flex: 1 }}>
+            <Text style={styles.integrationTitle}>Upcoming device calendar</Text>
+            <Text style={styles.optionBody}>See the next seven days and explicitly link events to ConvoWeave threads.</Text>
+          </View>
+          <Text style={styles.integrationArrow}>›</Text>
+        </Pressable>
+      </View>
 
       <View style={screenStyles.card}>
         <Text style={styles.sectionTitle}>Completed-meeting audio</Text>
@@ -155,6 +171,9 @@ function Boundary({ title, body }: { title: string; body: string }) {
 const styles = StyleSheet.create({
   sectionTitle: { color: colors.ink, fontSize: 18, fontWeight: '900', marginBottom: 7 },
   body: { color: colors.muted, lineHeight: 20 },
+  integrationButton: { borderTopWidth: 1, borderTopColor: colors.lineSoft, marginTop: 13, paddingTop: 13, flexDirection: 'row', alignItems: 'center', gap: 10 },
+  integrationTitle: { color: colors.ink, fontSize: 14, fontWeight: '900' },
+  integrationArrow: { color: colors.muted, fontSize: 24 },
   options: { gap: 8, marginTop: 16 },
   option: { borderWidth: 1, borderColor: colors.line, borderRadius: 12, padding: 13, flexDirection: 'row', gap: 12, alignItems: 'center' },
   optionSelected: { backgroundColor: colors.mintSoft, borderColor: colors.forest },
