@@ -1,5 +1,6 @@
 import type {
   Assumption,
+  CalendarEventThreadLink,
   Commitment,
   Contradiction,
   Decision,
@@ -25,6 +26,7 @@ type EntityKind =
   | 'meeting-review'
   | 'meeting-change-set'
   | 'thread'
+  | 'calendar-event-thread-link'
   | 'decision'
   | 'commitment'
   | 'assumption'
@@ -79,6 +81,7 @@ export class MeetingRepository extends SQLiteEntityRepository<Meeting> { constru
 export class MeetingReviewRepository extends SQLiteEntityRepository<MeetingReview> { constructor() { super('meeting-review'); } }
 export class MeetingChangeSetRepository extends SQLiteEntityRepository<MeetingChangeSet> { constructor() { super('meeting-change-set'); } }
 export class ThreadRepository extends SQLiteEntityRepository<Thread> { constructor() { super('thread'); } }
+export class CalendarEventThreadLinkRepository extends SQLiteEntityRepository<CalendarEventThreadLink> { constructor() { super('calendar-event-thread-link'); } }
 export class DecisionRepository extends SQLiteEntityRepository<Decision> { constructor() { super('decision'); } }
 export class CommitmentRepository extends SQLiteEntityRepository<Commitment> { constructor() { super('commitment'); } }
 export class AssumptionRepository extends SQLiteEntityRepository<Assumption> { constructor() { super('assumption'); } }
