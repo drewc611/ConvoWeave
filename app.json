@@ -22,6 +22,12 @@
           "microphonePermission": "Allow ConvoWeave to record meetings after you explicitly start a capture.",
           "enableBackgroundRecording": false
         }
+      ],
+      [
+        "expo-calendar",
+        {
+          "calendarPermission": "Allow ConvoWeave to show upcoming device calendar events only after you choose to connect your calendar."
+        }
       ]
     ]
   }
