@@ -1,8 +1,8 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Pressable, StyleSheet, Text, View } from 'react-native';
+import { Pressable, ScrollView, StyleSheet, Text, View } from 'react-native';
 import { Header, Screen, screenStyles } from '../../components/Screen';
 import type { CalendarEventThreadLink, Thread } from '../../models/domain';
-import { CalendarEventThreadLinkRepository } from '../../storage/repositories';
+import { CalendarEventThreadLinkRepository, ThreadRepository } from '../../storage/repositories';
 import { colors } from '../../theme';
 import { buildCalendarEventThreadLink, calendarEventLinkId, type UpcomingCalendarEvent } from './calendarModel';
 import {
@@ -12,19 +12,18 @@ import {
   type DeviceCalendarPermission,
 } from './deviceCalendarProvider';
 
-export function UpcomingMeetingsScreen({
-  selectedThread,
-  onBack,
-}: {
-  selectedThread: Thread | null;
-  onBack: () => void;
-}) {
+export function UpcomingMeetingsScreen({ onBack }: { onBack: () => void }) {
   const linkRepository = useMemo(() => new CalendarEventThreadLinkRepository(), []);
+  const threadRepository = useMemo(() => new ThreadRepository(), []);
   const [permission, setPermission] = useState<DeviceCalendarPermission>('undetermined');
   const [events, setEvents] = useState<UpcomingCalendarEvent[]>([]);
   const [links, setLinks] = useState<CalendarEventThreadLink[]>([]);
+  const [threads, setThreads] = useState<Thread[]>([]);
+  const [selectedThreadId, setSelectedThreadId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [message, setMessage] = useState<string | null>(null);
+
+  const selectedThread = threads.find((thread) => thread.id === selectedThreadId) ?? null;
 
   const loadLinks = async () => setLinks(await linkRepository.list());
 
@@ -43,10 +42,16 @@ export function UpcomingMeetingsScreen({
 
   useEffect(() => {
     void (async () => {
-      await loadLinks();
-      const current = await getDeviceCalendarPermission();
-      setPermission(current);
-      if (current === 'granted') await loadEvents();
+      const [storedLinks, storedThreads, currentPermission] = await Promise.all([
+        linkRepository.list(),
+        threadRepository.list(),
+        getDeviceCalendarPermission(),
+      ]);
+      setLinks(storedLinks);
+      setThreads(storedThreads);
+      setSelectedThreadId(storedThreads[0]?.id ?? null);
+      setPermission(currentPermission);
+      if (currentPermission === 'granted') await loadEvents();
       else setLoading(false);
     })();
   }, []);
@@ -74,6 +79,7 @@ export function UpcomingMeetingsScreen({
   };
 
   const linksById = new Map(links.map((link) => [link.id, link]));
+  const threadsById = new Map(threads.map((thread) => [thread.id, thread]));
 
   return (
     <Screen>
@@ -97,11 +103,26 @@ export function UpcomingMeetingsScreen({
           <View style={styles.summary}>
             <View style={{ flex: 1 }}>
               <Text style={styles.summaryTitle}>Next 7 days</Text>
-              <Text style={styles.body}>{selectedThread ? `Link events explicitly to “${selectedThread.title}”.` : 'Select a ConvoWeave thread before linking an event.'}</Text>
+              <Text style={styles.body}>Choose a ConvoWeave thread, then link only the events that belong to that durable memory.</Text>
             </View>
             <Pressable style={styles.refreshButton} onPress={() => { void loadEvents(); }} disabled={loading}>
               <Text style={styles.refreshText}>{loading ? 'Loading…' : 'Refresh'}</Text>
             </Pressable>
+          </View>
+
+          <View style={styles.threadPanel}>
+            <Text style={styles.threadLabel}>LINK EVENTS TO THREAD</Text>
+            {threads.length === 0 ? (
+              <Text style={styles.body}>Create a ConvoWeave thread before linking calendar events.</Text>
+            ) : (
+              <ScrollView horizontal showsHorizontalScrollIndicator={false} contentContainerStyle={styles.threadRow}>
+                {threads.map((thread) => (
+                  <Pressable key={thread.id} onPress={() => setSelectedThreadId(thread.id)} style={[styles.threadChip, selectedThreadId === thread.id && styles.threadChipSelected]}>
+                    <Text style={[styles.threadChipText, selectedThreadId === thread.id && styles.threadChipTextSelected]}>{thread.title}</Text>
+                  </Pressable>
+                ))}
+              </ScrollView>
+            )}
           </View>
 
           {message ? <View style={screenStyles.card}><Text style={styles.message}>{message}</Text></View> : null}
@@ -114,6 +135,7 @@ export function UpcomingMeetingsScreen({
           ) : events.map((event) => {
             const linkId = calendarEventLinkId(event);
             const link = linksById.get(linkId);
+            const linkedThread = link ? threadsById.get(link.threadId) : null;
             const linkedToSelected = Boolean(link && selectedThread && link.threadId === selectedThread.id);
             return (
               <View key={linkId} style={[screenStyles.card, linkedToSelected && styles.linkedCard]}>
@@ -127,7 +149,7 @@ export function UpcomingMeetingsScreen({
 
                 {link ? (
                   <View style={styles.linkStatus}>
-                    <Text style={styles.linkStatusText}>{linkedToSelected ? `Linked to ${selectedThread?.title}` : 'Linked to another ConvoWeave thread'}</Text>
+                    <Text style={styles.linkStatusText}>Linked to {linkedThread?.title ?? 'a ConvoWeave thread'}</Text>
                     <Pressable onPress={() => { void unlinkEvent(event); }}><Text style={styles.unlinkText}>Unlink</Text></Pressable>
                   </View>
                 ) : (
@@ -142,7 +164,7 @@ export function UpcomingMeetingsScreen({
       )}
 
       <Pressable style={screenStyles.button} onPress={onBack}>
-        <Text style={screenStyles.buttonText}>Back to meetings</Text>
+        <Text style={screenStyles.buttonText}>Back to settings</Text>
       </Pressable>
     </Screen>
   );
@@ -158,6 +180,13 @@ const styles = StyleSheet.create({
   refreshButton: { borderWidth: 1, borderColor: colors.line, borderRadius: 10, paddingVertical: 8, paddingHorizontal: 11 },
   refreshText: { color: colors.ink, fontSize: 11, fontWeight: '900' },
   summaryTitle: { color: colors.ink, fontSize: 15, fontWeight: '900' },
+  threadPanel: { backgroundColor: colors.paper, borderWidth: 1, borderColor: colors.line, borderRadius: 16, padding: 13, marginBottom: 12 },
+  threadLabel: { color: colors.muted, fontSize: 9, fontWeight: '900', letterSpacing: 1 },
+  threadRow: { gap: 7, paddingTop: 9 },
+  threadChip: { borderWidth: 1, borderColor: colors.line, borderRadius: 999, paddingVertical: 8, paddingHorizontal: 11 },
+  threadChipSelected: { backgroundColor: colors.mintSoft, borderColor: colors.forest },
+  threadChipText: { color: colors.mutedDark, fontSize: 11, fontWeight: '800' },
+  threadChipTextSelected: { color: colors.forestDark },
   row: { flexDirection: 'row', justifyContent: 'space-between', alignItems: 'center', gap: 10, marginBottom: 9 },
   kicker: { color: colors.forest, fontSize: 10, fontWeight: '900', letterSpacing: 1 },
   date: { color: colors.muted, fontSize: 11 },
