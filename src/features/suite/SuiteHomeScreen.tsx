@@ -57,6 +57,7 @@ type SuiteHomeScreenProps = {
   onOpenQuestions: () => void;
   onOpenContradictions: () => void;
   onOpenPrivateNotes: () => void;
+  onOpenSettings: () => void;
 };
 
 function formatDuration(ms: number) {
@@ -129,6 +130,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
             <NavItem label="Open Questions" count={openQuestions.length} onPress={props.onOpenQuestions} />
             <NavItem label="Contradictions" count={proposedContradictions.length} onPress={props.onOpenContradictions} />
             <NavItem label="Private Sidecar" count={privateCount} onPress={props.onOpenPrivateNotes} />
+            <NavItem label="Privacy & Retention" onPress={props.onOpenSettings} />
             <View style={styles.sidebarSpacer} />
             <View style={styles.sidebarStatus}>
               <View style={styles.statusDot} />
@@ -160,6 +162,7 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
               <NavPill label="Questions" onPress={props.onOpenQuestions} />
               <NavPill label="Conflicts" onPress={props.onOpenContradictions} />
               <NavPill label="Private" onPress={props.onOpenPrivateNotes} />
+              <NavPill label="Settings" onPress={props.onOpenSettings} />
             </ScrollView>
           ) : null}
 
@@ -298,12 +301,13 @@ export function SuiteHomeScreen(props: SuiteHomeScreenProps) {
                 <MemoryLink title="Open Questions" body="Unresolved questions that stay visible until explicitly closed." onPress={props.onOpenQuestions} />
                 <MemoryLink title="Contradiction Review" body="Conflicts that require human resolution." onPress={props.onOpenContradictions} />
                 <MemoryLink title="Private Sidecar" body="Notes excluded from shared context until you promote them." onPress={props.onOpenPrivateNotes} />
+                <MemoryLink title="Privacy & Retention" body="Control local raw-audio retention without deleting trusted structured memory." onPress={props.onOpenSettings} />
               </View>
 
-              <View style={styles.privacyCard}>
+              <Pressable style={styles.privacyCard} onPress={props.onOpenSettings}>
                 <Text style={styles.privacyTitle}>Private by default</Text>
-                <Text style={styles.privacyBody}>Source-backed memory can be shared. Private Sidecar notes remain excluded until you explicitly promote them.</Text>
-              </View>
+                <Text style={styles.privacyBody}>Source-backed memory can be shared. Private Sidecar notes remain excluded until you explicitly promote them. Manage retention →</Text>
+              </Pressable>
             </View>
           </View>
         </ScrollView>
