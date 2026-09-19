@@ -45,6 +45,15 @@ export type Thread = {
   updatedAt: ISODateTime;
 };
 
+export type CalendarEventThreadLink = {
+  id: string;
+  threadId: string;
+  calendarId: string;
+  eventId: string;
+  eventStartAt: ISODateTime;
+  linkedAt: ISODateTime;
+};
+
 export type DecisionStatus = 'active' | 'superseded' | 'reversed' | 'disputed';
 
 export type Decision = {
