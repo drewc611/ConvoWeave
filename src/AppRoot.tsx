@@ -13,6 +13,7 @@ import { CaptureScreen } from './features/meetings/CaptureScreen';
 import { ReviewScreen } from './features/meetings/ReviewScreen';
 import { PrivateSidecarScreen } from './features/private-notes/PrivateSidecarScreen';
 import { promotePrivateNote, returnPrivateNoteToSidecar } from './features/private-notes/privateContext';
+import { PrivacySettingsScreen } from './features/privacy/PrivacySettingsScreen';
 import { OpenQuestionsScreen } from './features/questions/OpenQuestionsScreen';
 import { MeetingWorkspaceScreen } from './features/suite/MeetingWorkspaceScreen';
 import { SuiteHomeScreen } from './features/suite/SuiteHomeScreen';
@@ -42,7 +43,7 @@ import {
   ThreadRepository,
 } from './storage/repositories';
 
-type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'impacts' | 'commitments' | 'assumptions' | 'questions' | 'contradictions' | 'private-notes';
+type Route = 'home' | 'capture' | 'review' | 'workspace' | 'changes' | 'decisions' | 'impacts' | 'commitments' | 'assumptions' | 'questions' | 'contradictions' | 'private-notes' | 'settings';
 
 const makeId = (prefix: string) => `${prefix}-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
 
@@ -414,6 +415,7 @@ export function AppRoot() {
   if (route === 'questions') return <OpenQuestionsScreen questions={threadQuestions} decisions={threadDecisions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateQuestion} onBack={() => setRoute('home')} />;
   if (route === 'contradictions') return <ContradictionReviewScreen contradictions={threadContradictions} threadTitle={selectedThread?.title ?? 'Meeting thread'} onUpdate={updateContradiction} onBack={() => setRoute('home')} />;
   if (route === 'private-notes') return <PrivateSidecarScreen notes={threadPrivateNotes} threadTitle={selectedThread?.title ?? 'Meeting thread'} onCreate={createPrivateNote} onPromote={promoteNote} onReturnPrivate={makeNotePrivate} onDelete={deletePrivateNote} onBack={() => setRoute('home')} />;
+  if (route === 'settings') return <PrivacySettingsScreen onBack={() => setRoute('home')} onDataChanged={refresh} />;
 
   return (
     <SuiteHomeScreen
@@ -447,6 +449,7 @@ export function AppRoot() {
       onOpenQuestions={() => setRoute('questions')}
       onOpenContradictions={() => setRoute('contradictions')}
       onOpenPrivateNotes={() => setRoute('private-notes')}
+      onOpenSettings={() => setRoute('settings')}
     />
   );
 }

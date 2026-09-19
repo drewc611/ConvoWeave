@@ -114,6 +114,14 @@ export type PrivateNote = {
   promotedAt?: ISODateTime;
 };
 
+export type AudioRetentionPolicy = 'forever' | '7d' | '30d' | '90d';
+
+export type PrivacySettings = {
+  id: 'privacy-settings';
+  audioRetention: AudioRetentionPolicy;
+  updatedAt: ISODateTime;
+};
+
 export type ProposalKind = 'decision' | 'commitment' | 'assumption' | 'question' | 'contradiction';
 export type ProposalState = 'proposed' | 'accepted' | 'rejected';
 

@@ -6,6 +6,7 @@ import type {
   Meeting,
   MeetingChangeSet,
   MeetingReview,
+  PrivacySettings,
   PrivateNote,
   Question,
   Thread,
@@ -29,7 +30,8 @@ type EntityKind =
   | 'assumption'
   | 'question'
   | 'contradiction'
-  | 'private-note';
+  | 'private-note'
+  | 'privacy-settings';
 type EntityRow = { payload: string };
 
 class SQLiteEntityRepository<T extends { id: string }> implements Repository<T> {
@@ -83,3 +85,4 @@ export class AssumptionRepository extends SQLiteEntityRepository<Assumption> { c
 export class QuestionRepository extends SQLiteEntityRepository<Question> { constructor() { super('question'); } }
 export class ContradictionRepository extends SQLiteEntityRepository<Contradiction> { constructor() { super('contradiction'); } }
 export class PrivateNoteRepository extends SQLiteEntityRepository<PrivateNote> { constructor() { super('private-note'); } }
+export class PrivacySettingsRepository extends SQLiteEntityRepository<PrivacySettings> { constructor() { super('privacy-settings'); } }
