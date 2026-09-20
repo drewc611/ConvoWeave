@@ -19,6 +19,8 @@ export type Meeting = {
   endedAt?: ISODateTime;
   durationMs: number;
   audioUri?: string;
+  /** Durable tombstone used to resume an interrupted local-audio deletion. */
+  audioCleanupUri?: string;
   captureNotes?: string;
   status: MeetingStatus;
   transcript?: Transcript;
