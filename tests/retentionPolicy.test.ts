@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import type { Meeting } from '../src/models/domain';
-import { eligibleCompletedAudio, retentionCutoff, withoutLocalAudio } from '../src/features/privacy/retentionPolicy';
+import { beginLocalAudioCleanup, eligibleCompletedAudio, finishLocalAudioCleanup, pendingAudioCleanup, retentionCutoff, withoutLocalAudio } from '../src/features/privacy/retentionPolicy';
 
 const now = new Date('2026-09-19T12:00:00.000Z');
 
@@ -67,5 +67,33 @@ describe('local raw-audio retention', () => {
     expect(cleaned.threadId).toBe(original.threadId);
     expect(cleaned.endedAt).toBe(original.endedAt);
     expect(original.audioUri).toBe('file:///recording.m4a');
+  });
+  it('persists a recoverable tombstone before destructive deletion', () => {
+    const original = meeting({ id: 'pending' });
+    const pending = beginLocalAudioCleanup(original);
+
+    expect(pending.audioUri).toBeUndefined();
+    expect(pending.audioCleanupUri).toBe('file:///recording.m4a');
+    expect(pending.transcript).toEqual(original.transcript);
+    expect(pendingAudioCleanup([pending])).toEqual([pending]);
+  });
+
+  it('recovers idempotently after interruption between state transition and deletion', () => {
+    const pending = beginLocalAudioCleanup(meeting({ id: 'restart' }));
+    const recovered = finishLocalAudioCleanup(pending);
+    const retried = finishLocalAudioCleanup(recovered);
+
+    expect(recovered.audioUri).toBeUndefined();
+    expect(recovered.audioCleanupUri).toBeUndefined();
+    expect(retried).toEqual(recovered);
+    expect(recovered.transcript).toEqual(pending.transcript);
+  });
+
+  it('never begins cleanup for draft or review-stage recordings', () => {
+    const draft = meeting({ id: 'draft-safe', status: 'draft' });
+    const review = meeting({ id: 'review-safe', status: 'review' });
+
+    expect(beginLocalAudioCleanup(draft)).toBe(draft);
+    expect(beginLocalAudioCleanup(review)).toBe(review);
   });
 });

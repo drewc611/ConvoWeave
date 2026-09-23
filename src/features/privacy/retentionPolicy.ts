@@ -26,14 +26,34 @@ export function eligibleCompletedAudio(
   if (cutoff === null) return [];
 
   return meetings.filter((meeting) => {
-    if (meeting.status !== 'complete' || !meeting.audioUri) return false;
+    if (meeting.status !== 'complete' || !meeting.audioUri || meeting.audioCleanupUri) return false;
     const completedAt = meeting.endedAt ?? meeting.startedAt;
     const completedMs = Date.parse(completedAt);
     return Number.isFinite(completedMs) && completedMs < cutoff;
   });
 }
 
-export function withoutLocalAudio(meeting: Meeting): Meeting {
-  const { audioUri: _audioUri, ...rest } = meeting;
+/**
+ * First phase of local audio cleanup. Persist this state before deleting the file.
+ * A restart can resume deletion from audioCleanupUri without claiming audio is available.
+ */
+export function beginLocalAudioCleanup(meeting: Meeting): Meeting {
+  if (!meeting.audioUri || meeting.status !== 'complete') return meeting;
+  const { audioUri, ...rest } = meeting;
+  return { ...rest, audioCleanupUri: audioUri };
+}
+
+/** Final phase after deletion succeeds or the file is already absent. */
+export function finishLocalAudioCleanup(meeting: Meeting): Meeting {
+  const { audioUri: _audioUri, audioCleanupUri: _audioCleanupUri, ...rest } = meeting;
   return rest;
+}
+
+export function pendingAudioCleanup(meetings: Meeting[]): Meeting[] {
+  return meetings.filter((meeting) => meeting.status === 'complete' && Boolean(meeting.audioCleanupUri));
+}
+
+/** Backward-compatible helper for callers/tests that only need the final clean state. */
+export function withoutLocalAudio(meeting: Meeting): Meeting {
+  return finishLocalAudioCleanup(meeting);
 }

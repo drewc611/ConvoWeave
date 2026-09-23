@@ -5,7 +5,7 @@ import { Header, Screen, screenStyles } from '../../components/Screen';
 import type { AudioRetentionPolicy, PrivacySettings } from '../../models/domain';
 import { colors } from '../../theme';
 import { MeetingRepository, PrivacySettingsRepository } from '../../storage/repositories';
-import { DEFAULT_PRIVACY_SETTINGS, eligibleCompletedAudio, withoutLocalAudio } from './retentionPolicy';
+import { beginLocalAudioCleanup, DEFAULT_PRIVACY_SETTINGS, eligibleCompletedAudio, finishLocalAudioCleanup, pendingAudioCleanup } from './retentionPolicy';
 
 const OPTIONS: { value: AudioRetentionPolicy; label: string; body: string }[] = [
   { value: 'forever', label: 'Keep forever', body: 'Do not automatically select any completed meeting audio for cleanup.' },
@@ -64,18 +64,39 @@ export function PrivacySettingsScreen({
     setMessage(null);
     try {
       const meetings = await meetingRepository.list();
+      const pending = pendingAudioCleanup(meetings);
       const eligible = eligibleCompletedAudio(meetings, settings.audioRetention);
       let cleaned = 0;
       let failed = 0;
 
+      // Resume tombstoned deletions first. This is safe to retry after a crash.
+      for (const meeting of pending) {
+        if (!meeting.audioCleanupUri) continue;
+        try {
+          const file = new File(meeting.audioCleanupUri);
+          if (file.exists) file.delete();
+          await meetingRepository.upsert(finishLocalAudioCleanup(meeting));
+          cleaned += 1;
+        } catch {
+          failed += 1;
+        }
+      }
+
       for (const meeting of eligible) {
         if (!meeting.audioUri) continue;
         try {
-          const file = new File(meeting.audioUri);
+          // Persist the tombstone before the destructive delete. Durable state never
+          // claims that audio is available after deletion has begun.
+          const pendingMeeting = beginLocalAudioCleanup(meeting);
+          await meetingRepository.upsert(pendingMeeting);
+
+          const file = new File(pendingMeeting.audioCleanupUri!);
           if (file.exists) file.delete();
-          await meetingRepository.upsert(withoutLocalAudio(meeting));
+          await meetingRepository.upsert(finishLocalAudioCleanup(pendingMeeting));
           cleaned += 1;
         } catch {
+          // If deletion/finalization fails, audioCleanupUri remains durable and the
+          // next Apply retention run resumes deterministically.
           failed += 1;
         }
       }
