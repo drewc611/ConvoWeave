@@ -54,7 +54,7 @@ jobs:
         run: npm --prefix backend install --ignore-scripts --no-audit --no-fund
 
       - name: Generate CycloneDX SBOM
-        uses: anchore/sbom-action@v0.24.0
+        uses: anchore/sbom-action@v0.24.2
         with:
           path: .
           format: cyclonedx-json
