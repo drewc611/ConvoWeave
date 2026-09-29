@@ -1,3 +1,4 @@
+import { randomBytes } from 'node:crypto';
 import assert from 'node:assert/strict';
 import test from 'node:test';
 import { loadBackendConfig } from './config.mjs';
@@ -24,6 +25,7 @@ test('development config is explicit and valid', () => {
 test('preview defaults to durable filesystem storage and delete-after-processing retention', () => {
   const config = loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
@@ -36,6 +38,7 @@ test('preview defaults to durable filesystem storage and delete-after-processing
 test('preview retention and storage path can be configured without source edits', () => {
   const config = loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
@@ -51,6 +54,7 @@ test('preview retention and storage path can be configured without source edits'
 test('invalid storage and retention modes are rejected', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
@@ -59,6 +63,7 @@ test('invalid storage and retention modes are rejected', () => {
 
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
@@ -77,12 +82,14 @@ test('development-token auth requires a token', () => {
 test('OIDC config requires issuer, audience, and JWKS URL', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
   }), /OIDC_ISSUER/);
 
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
     OIDC_ISSUER: 'https://issuer.example',
@@ -93,6 +100,7 @@ test('OIDC config requires issuer, audience, and JWKS URL', () => {
 test('OIDC preview config is provider-neutral and uses safe defaults', () => {
   const config = loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
     OIDC_ISSUER: 'https://issuer.example',
@@ -110,6 +118,7 @@ test('OIDC preview config is provider-neutral and uses safe defaults', () => {
 test('OIDC rejects insecure issuer/JWKS URLs outside development and unsafe algorithms', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
     OIDC_ISSUER: 'http://issuer.example',
@@ -119,6 +128,7 @@ test('OIDC rejects insecure issuer/JWKS URLs outside development and unsafe algo
 
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
     OIDC_ISSUER: 'https://issuer.example',
@@ -128,6 +138,7 @@ test('OIDC rejects insecure issuer/JWKS URLs outside development and unsafe algo
 
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'oidc',
     CONVOWEAVE_PROCESSING_PROVIDER: 'deterministic',
     OIDC_ISSUER: 'https://issuer.example',
@@ -140,6 +151,7 @@ test('OIDC rejects insecure issuer/JWKS URLs outside development and unsafe algo
 test('preview OpenAI provider requires a backend-only API key', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-dev-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
@@ -149,6 +161,7 @@ test('preview OpenAI provider requires a backend-only API key', () => {
 test('preview OpenAI provider receives safe model defaults', () => {
   const config = loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-dev-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
@@ -165,6 +178,7 @@ test('preview OpenAI provider receives safe model defaults', () => {
 test('OpenAI model and timeout settings can be changed without source edits', () => {
   const config = loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-dev-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
@@ -219,10 +233,33 @@ test('invalid ports are rejected', () => {
 test('invalid OpenAI timeout is rejected', () => {
   assert.throws(() => loadBackendConfig({
     CONVOWEAVE_ENV: 'preview',
+    PUBLIC_BASE_URL: 'https://api.convoweave.example',
     CONVOWEAVE_AUTH_MODE: 'development-token',
     CONVOWEAVE_DEV_TOKEN: 'preview-dev-token',
     CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
     OPENAI_API_KEY: 'test-only-key',
     OPENAI_TIMEOUT_MS: '0',
   }), /OPENAI_TIMEOUT_MS/);
+});
+
+test('preview and production require PUBLIC_BASE_URL so upload URLs never come from the Host header', () => {
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'preview',
+    CONVOWEAVE_DEV_TOKEN: randomBytes(16).toString('hex'),
+  }), /PUBLIC_BASE_URL is required/);
+  assert.throws(() => loadBackendConfig({
+    CONVOWEAVE_ENV: 'production',
+    CONVOWEAVE_AUTH_MODE: 'oidc',
+    CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
+    OPENAI_API_KEY: 'test-only-key',
+    CONVOWEAVE_STORAGE_MODE: 'filesystem',
+    OIDC_ISSUER: 'https://login.example',
+    OIDC_AUDIENCE: 'convoweave-api',
+    OIDC_JWKS_URL: 'https://login.example/.well-known/jwks.json',
+  }), /PUBLIC_BASE_URL is required/);
+});
+
+test('development does not require PUBLIC_BASE_URL', () => {
+  const config = loadBackendConfig({ CONVOWEAVE_DEV_TOKEN: 'dev-token' });
+  assert.equal(config.publicBaseUrl, undefined);
 });

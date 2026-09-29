@@ -1,5 +1,6 @@
 import assert from 'node:assert/strict';
 import { once } from 'node:events';
+import { request as httpRequest } from 'node:http';
 import test from 'node:test';
 import { createBackendServer } from './server.mjs';
 
@@ -210,5 +211,36 @@ test('provider failures become durable failed sessions and safe 502 responses', 
       async ready() { return true; },
       async process() { throw new Error('sensitive provider detail'); },
     },
+  });
+});
+
+test('upload URL origin ignores a spoofed Host header', async () => {
+  await withServer(async ({ baseUrl }) => {
+    const target = new URL(baseUrl);
+    const body = JSON.stringify({ meetingId: 'meeting-host', uploadScope: 'audio-and-transcript' });
+    const created = await new Promise((resolve, reject) => {
+      const req = httpRequest({
+        host: target.hostname,
+        port: target.port,
+        path: '/v1/processing-sessions',
+        method: 'POST',
+        headers: {
+          Host: 'attacker.example',
+          Authorization: 'Bearer development-test-token',
+          'Content-Type': 'application/json',
+          'Content-Length': Buffer.byteLength(body),
+        },
+      }, (res) => {
+        const chunks = [];
+        res.on('data', (chunk) => chunks.push(chunk));
+        res.on('end', () => resolve({ status: res.statusCode, body: JSON.parse(Buffer.concat(chunks).toString('utf8')) }));
+      });
+      req.on('error', reject);
+      req.end(body);
+    });
+    assert.equal(created.status, 201);
+    const uploadUrl = new URL(created.body.audioUploadUrl);
+    assert.notEqual(uploadUrl.hostname, 'attacker.example');
+    assert.equal(uploadUrl.origin, baseUrl);
   });
 });
