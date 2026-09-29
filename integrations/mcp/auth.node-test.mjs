@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { randomBytes } from 'node:crypto';
 import test from 'node:test';
 import { bearerChallenge, createMcpAuthVerifier, loadMcpAuthConfig, oauthProtectedResourceMetadata } from './auth.mjs';
 
@@ -15,6 +16,23 @@ test('development auth produces scoped principal AuthInfo', async () => {
   assert.ok(auth.scopes.includes('convoweave.read'));
   assert.ok(auth.scopes.includes('convoweave.write'));
   assert.equal(await verifier.verify('wrong'), null);
+});
+
+test('development auth compares tokens without length or empty-value shortcuts', async () => {
+  const token = randomBytes(24).toString('hex');
+  const sameLengthWrong = randomBytes(24).toString('hex');
+  const config = loadMcpAuthConfig({
+    CONVOWEAVE_MCP_AUTH_MODE: 'development-token',
+    CONVOWEAVE_MCP_DEV_TOKEN: token,
+    CONVOWEAVE_MCP_PUBLIC_BASE_URL: 'https://mcp.example.test',
+    CONVOWEAVE_ACCOUNT_STORE_MODE: 'memory',
+  });
+  const verifier = createMcpAuthVerifier(config);
+  assert.ok(await verifier.verify(token));
+  assert.equal(await verifier.verify(sameLengthWrong), null);
+  assert.equal(await verifier.verify(`${token}x`), null);
+  assert.equal(await verifier.verify(''), null);
+  assert.equal(await verifier.verify(undefined), null);
 });
 
 test('OIDC protected resource metadata advertises configured resource scopes and issuer', () => {
