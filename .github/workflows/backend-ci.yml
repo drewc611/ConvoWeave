@@ -104,6 +104,7 @@ jobs:
             -p 8788:8787 \
             -v "$RUNNER_TEMP/convoweave-data:/data/convoweave" \
             -e CONVOWEAVE_ENV=preview \
+            -e PUBLIC_BASE_URL=http://127.0.0.1:8788 \
             -e CONVOWEAVE_AUTH_MODE=development-token \
             -e CONVOWEAVE_DEV_TOKEN=ci-preview-token \
             -e CONVOWEAVE_PROCESSING_PROVIDER=deterministic \
