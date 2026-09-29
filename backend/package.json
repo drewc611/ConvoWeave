@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "start": "node server.mjs",
-    "test": "node --test config.node-test.mjs auth/auth.node-test.mjs reliability.node-test.mjs providers/openai.node-test.mjs server.node-test.mjs persistence.node-test.mjs storage/storage.node-test.mjs",
+    "test": "node --test config.node-test.mjs auth/auth.node-test.mjs reliability.node-test.mjs providers/openai.node-test.mjs server.node-test.mjs persistence.node-test.mjs storage/storage.node-test.mjs openai-live-smoke.node-test.mjs",
     "smoke:openai": "node openai-live-smoke.mjs"
   },
   "dependencies": {
