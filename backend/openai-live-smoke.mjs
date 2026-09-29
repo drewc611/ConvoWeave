@@ -9,11 +9,22 @@ if (!audioPath) {
   process.exit(2);
 }
 
+const authMode = process.env.CONVOWEAVE_AUTH_MODE || 'development-token';
+if (authMode === 'development-token' && !process.env.CONVOWEAVE_DEV_TOKEN?.trim()) {
+  console.error('CONVOWEAVE_DEV_TOKEN is required for development-token auth. Set it in the environment before running the smoke test.');
+  process.exit(2);
+}
+if (!process.env.OPENAI_API_KEY?.trim()) {
+  console.error('OPENAI_API_KEY is required. Set it in the environment before running the smoke test.');
+  process.exit(2);
+}
+
 const config = loadBackendConfig({
   ...process.env,
   CONVOWEAVE_ENV: 'preview',
-  CONVOWEAVE_AUTH_MODE: process.env.CONVOWEAVE_AUTH_MODE || 'development-token',
-  CONVOWEAVE_DEV_TOKEN: process.env.CONVOWEAVE_DEV_TOKEN || 'operator-local-smoke-token',
+  // The smoke test never issues upload URLs; preview config only requires the value to be a URL.
+  PUBLIC_BASE_URL: process.env.PUBLIC_BASE_URL || 'https://smoke.invalid',
+  CONVOWEAVE_AUTH_MODE: authMode,
   CONVOWEAVE_PROCESSING_PROVIDER: 'openai',
 });
 const processor = createProcessor(config);

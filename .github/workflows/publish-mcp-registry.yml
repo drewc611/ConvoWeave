@@ -22,7 +22,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate production endpoint
         env:
@@ -46,9 +46,27 @@ jobs:
             integrations/mcp/server.registry.template.json > integrations/mcp/server.json
           cat integrations/mcp/server.json
 
+      # Pinned release with SHA256 values copied from the release's own
+      # registry_1.8.1_checksums.txt. To upgrade, change the version and both
+      # hashes together from the new release's checksums file.
       - name: Install MCP Registry publisher
+        env:
+          MCP_PUBLISHER_VERSION: v1.8.1
+          MCP_PUBLISHER_SHA256_LINUX_AMD64: a06c9096dcb9727c13555b6be26c7effa707b01f06a4c561ba7a3635443cf2cc
+          MCP_PUBLISHER_SHA256_LINUX_ARM64: 8dd75a6cf6845688b5d4e46df58d3ca26d5c8d233bb0626606e1db82c5e883e4
         run: |
-          curl -L "https://github.com/modelcontextprotocol/registry/releases/latest/download/mcp-publisher_$(uname -s | tr '[:upper:]' '[:lower:]')_$(uname -m | sed 's/x86_64/amd64/;s/aarch64/arm64/').tar.gz" | tar xz mcp-publisher
+          set -euo pipefail
+          case "$(uname -m)" in
+            x86_64) arch=amd64; expected="$MCP_PUBLISHER_SHA256_LINUX_AMD64" ;;
+            aarch64) arch=arm64; expected="$MCP_PUBLISHER_SHA256_LINUX_ARM64" ;;
+            *) echo "Unsupported architecture: $(uname -m)" >&2; exit 1 ;;
+          esac
+          archive="mcp-publisher_linux_${arch}.tar.gz"
+          curl --fail --silent --show-error --location --output "$archive" \
+            "https://github.com/modelcontextprotocol/registry/releases/download/${MCP_PUBLISHER_VERSION}/${archive}"
+          echo "${expected}  ${archive}" | sha256sum --check --strict
+          tar xzf "$archive" mcp-publisher
+          rm "$archive"
 
       - name: Authenticate with GitHub OIDC
         working-directory: integrations/mcp

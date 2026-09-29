@@ -35,7 +35,7 @@ jobs:
           node-version: 24
           package-manager-cache: false
       - name: Install MCP dependencies
-        run: npm --prefix integrations/mcp install --ignore-scripts
+        run: npm --prefix integrations/mcp ci --ignore-scripts
       - name: Test MCP contracts
         run: npm --prefix integrations/mcp test
       - name: Dependency audit

@@ -6,6 +6,7 @@ The preview backend persists processing sessions and raw audio through storage a
 
 ```bash
 export CONVOWEAVE_ENV=preview
+export PUBLIC_BASE_URL=https://preview-api.example.com
 export CONVOWEAVE_AUTH_MODE=development-token
 export CONVOWEAVE_DEV_TOKEN='runtime-only-preview-token'
 export CONVOWEAVE_PROCESSING_PROVIDER=deterministic
@@ -13,6 +14,8 @@ export CONVOWEAVE_STORAGE_MODE=filesystem
 export CONVOWEAVE_DATA_DIR=/data/convoweave
 export CONVOWEAVE_AUDIO_RETENTION=delete-after-processing
 ```
+
+`PUBLIC_BASE_URL` is required outside development. The backend builds upload URLs from it and never from the request `Host` header.
 
 When using the OpenAI preview provider, configure the provider key at runtime as documented in `backend/README.md`. Never place provider secrets in `EXPO_PUBLIC_*` variables or source control.
 
@@ -24,6 +27,7 @@ The backend image declares `/data/convoweave` as its persistence volume. Mount a
 docker run --rm -p 8787:8787 \
   -v convoweave-preview-data:/data/convoweave \
   -e CONVOWEAVE_ENV=preview \
+  -e PUBLIC_BASE_URL=https://preview-api.example.com \
   -e CONVOWEAVE_AUTH_MODE=development-token \
   -e CONVOWEAVE_DEV_TOKEN='runtime-only-preview-token' \
   -e CONVOWEAVE_PROCESSING_PROVIDER=deterministic \

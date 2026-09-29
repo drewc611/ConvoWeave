@@ -84,6 +84,7 @@ export function loadBackendConfig(env = process.env) {
   if (environment === 'production' && authMode !== 'oidc') throw new Error('Production requires OIDC authentication.');
   if (environment === 'production' && processingProvider === 'deterministic') throw new Error('Production cannot use the deterministic processing provider. Configure a production provider before deployment.');
   const publicBaseUrl = normalizeOptionalUrl(env.PUBLIC_BASE_URL);
+  if (environment !== 'development' && !publicBaseUrl) throw new Error('PUBLIC_BASE_URL is required in preview and production. Upload URLs are never derived from the request Host header.');
   if (environment === 'production' && publicBaseUrl && !publicBaseUrl.startsWith('https://')) throw new Error('Production PUBLIC_BASE_URL must use HTTPS.');
   return {
     environment,

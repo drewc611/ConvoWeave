@@ -18,7 +18,7 @@ function config(root, audioRetention = 'delete-after-processing') {
     processingProvider: 'test',
     host: '127.0.0.1',
     port: 0,
-    publicBaseUrl: undefined,
+    publicBaseUrl: 'https://api.convoweave.example',
     storage: {
       mode: 'filesystem',
       dataDir: root,
@@ -113,7 +113,9 @@ async function createAndUpload(baseUrl, meetingId = 'meeting-restart') {
   assert.equal(created.status, 201);
   const session = await created.json();
 
-  const uploaded = await fetch(session.audioUploadUrl, {
+  const uploadUrl = new URL(session.audioUploadUrl);
+  assert.equal(uploadUrl.origin, 'https://api.convoweave.example');
+  const uploaded = await fetch(`${baseUrl}${uploadUrl.pathname}`, {
     method: 'PUT',
     body: Buffer.from('restart-safe-audio'),
   });
@@ -188,8 +190,8 @@ test('processing state with retained audio recovers on first poll after restart'
       uploadScope: 'audio-and-transcript',
       approvedAt: '2026-09-14T00:00:00Z',
       status: 'processing',
-      createdAt: '2026-09-14T00:00:00Z',
-      uploadConsumedAt: '2026-09-14T00:00:01Z',
+      createdAt: new Date().toISOString(),
+      uploadConsumedAt: new Date().toISOString(),
       audioRef,
     });
 

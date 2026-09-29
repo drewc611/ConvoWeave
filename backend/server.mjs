@@ -30,6 +30,16 @@ async function readBody(request, maxBytes) {
   for await (const chunk of request) { size += chunk.length; if (size > maxBytes) throw new Error('request-too-large'); chunks.push(chunk); }
   return Buffer.concat(chunks);
 }
+// Upload URLs must not depend on the client-controlled Host header. Outside development
+// PUBLIC_BASE_URL is mandatory (enforced in config.mjs and again here); in development the
+// origin comes from the socket's own local address.
+function uploadOrigin(config, request) {
+  if (config.publicBaseUrl) return config.publicBaseUrl;
+  if (config.environment !== 'development') throw new Error('PUBLIC_BASE_URL is required outside development.');
+  const { localAddress, localPort } = request.socket;
+  const hostPart = localAddress?.includes(':') ? `[${localAddress}]` : (localAddress ?? '127.0.0.1');
+  return `http://${hostPart}:${localPort}`;
+}
 function bearerToken(request) {
   const authorization = request.headers.authorization;
   if (!authorization?.startsWith('Bearer ')) return null;
@@ -129,7 +139,7 @@ export function createBackendServer({ config = loadBackendConfig(), processor = 
         if (idemHash) {
           const existing = (await sessionStore.list()).find((candidate) => candidate.idempotencyHash === idemHash && !isExpired(candidate.createdAt, reliability.sessionTtlMs));
           if (existing) {
-            const origin = config.publicBaseUrl ?? `http://${host}`;
+            const origin = uploadOrigin(config, request);
             json(response, 200, { id: existing.id, meetingId: existing.meetingId, status: existing.status, replayed: true, audioUploadUrl: existing.status === 'created' ? `${origin.replace(/\/$/, '')}/v1/uploads/unavailable-replay` : undefined }, requestId); return;
           }
         }
@@ -137,7 +147,7 @@ export function createBackendServer({ config = loadBackendConfig(), processor = 
         const id = randomUUID(); const uploadToken = randomBytes(32).toString('base64url');
         const session = { id, meetingId: input.meetingId.trim(), threadId: typeof input.threadId === 'string' ? input.threadId.slice(0, 200) : undefined, durationMs: Number.isFinite(input.durationMs) ? Math.max(0, input.durationMs) : 0, uploadScope: input.uploadScope, approvedAt: typeof input.approvedAt === 'string' ? input.approvedAt : null, ownerSubject: principal.subject, authIssuer: principal.issuer, status: 'created', createdAt: new Date().toISOString(), uploadTokenHash: hashUploadToken(uploadToken), idempotencyHash: idemHash };
         await sessionStore.put(session);
-        const origin = config.publicBaseUrl ?? `http://${host}`;
+        const origin = uploadOrigin(config, request);
         json(response, 201, { id, meetingId: session.meetingId, status: session.status, audioUploadUrl: `${origin.replace(/\/$/, '')}/v1/uploads/${encodeURIComponent(uploadToken)}` }, requestId);
         logger.info?.('processing-session-created', { requestId, sessionId: id, meetingId: session.meetingId, uploadScope: session.uploadScope, provider: processor.name, sessionStore: sessionStore.kind }); return;
       }

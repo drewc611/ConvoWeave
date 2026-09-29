@@ -1,7 +1,17 @@
+import { timingSafeEqual } from 'node:crypto';
 import { createRemoteJWKSet, jwtVerify } from 'jose';
 
 const AUTH_MODES = new Set(['none', 'development-token', 'oidc']);
 const AUDIENCE_CLAIMS = new Set(['aud', 'client_id']);
+
+// Same comparison as backend/auth/developmentToken.mjs; this package ships separately, so it cannot import it.
+function safeTokenEqual(actual, expected) {
+  if (!actual || !expected) return false;
+  const left = Buffer.from(actual);
+  const right = Buffer.from(expected);
+  if (left.length !== right.length) return false;
+  return timingSafeEqual(left, right);
+}
 
 function normalizeUrl(value) {
   const trimmed = value?.trim();
@@ -84,7 +94,7 @@ export function createMcpAuthVerifier(config, { jwks } = {}) {
     return {
       name: 'development-token',
       async verify(token) {
-        if (!token || token !== config.devToken) return null;
+        if (!safeTokenEqual(token, config.devToken)) return null;
         return {
           token,
           clientId: 'convoweave-development',

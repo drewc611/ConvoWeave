@@ -101,7 +101,7 @@ test('OIDC mode isolates processing sessions by authenticated subject without pe
     processingProvider: 'test',
     host: '127.0.0.1',
     port: 0,
-    publicBaseUrl: undefined,
+    publicBaseUrl: 'https://api.convoweave.example',
     storage: { mode: 'memory', audioRetention: 'delete-after-processing' },
   };
   const server = createBackendServer({ config, processor, authVerifier, sessionStore, audioStore, logger: { info() {}, error() {} } });
