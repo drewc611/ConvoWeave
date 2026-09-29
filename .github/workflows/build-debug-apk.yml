@@ -32,7 +32,7 @@ jobs:
           java-version: '17'
 
       - name: Install dependencies
-        run: npm install --ignore-scripts
+        run: npm ci --ignore-scripts
 
       - name: Generate Android project
         env:
